@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MimeaHub • Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" href="/Images/S-Logo.png">
+</head>
+<body>
+<div class="dashboard-shell">
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="">
+            <span>MimeaHub</span>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+            <button onclick="toggleTheme()" class="btn" style="padding:8px 12px;">🌗</button>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="hero-banner">
+            <div>
+                <h1>Good morning, Farmer 👋</h1>
+                <p>Your farm insights are ready. Scan a leaf, review the latest trends, and stay ahead of disease pressure.</p>
+            </div>
+            <div class="hero-actions">
+                <button class="btn btn-primary" onclick="window.location.href='scan.html'">Start Scan</button>
+                <button class="btn btn-outline" onclick="window.location.href='analytics.html'">View Insights</button>
+            </div>
+        </div>
+
+        <div class="stat-bar">
+            <div class="stat-chip"><strong id="stat-total">0</strong><span>Total Scans</span></div>
+            <div class="stat-chip" style="color:#4ade80;"><strong id="stat-healthy">0</strong><span>Healthy</span></div>
+            <div class="stat-chip" style="color:#f87171;"><strong id="stat-diseased">0</strong><span>Diseased</span></div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="card quick-card" onclick="window.location.href='scan.html'">
+                <div class="quick-icon">📸</div>
+                <h3>Scan a Leaf</h3>
+                <p>Capture a fresh image and receive an instant AI diagnosis with treatment guidance.</p>
+            </div>
+            <div class="card">
+                <h3 style="margin-bottom:8px;">What matters today</h3>
+                <div id="insight-grid" class="insight-grid"></div>
+                <div style="margin-top:14px; border-top:1px solid var(--border); padding-top:12px;">
+                    <h4 style="margin-bottom:8px; font-size:1rem;">Recent Activity</h4>
+                    <div id="recent-activity-list" class="recent-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <div class="nav-item active" onclick="window.location.href='dashboard.html'">
+            <span>🏠</span>Home
+        </div>
+        <div class="nav-item" onclick="window.location.href='scan.html'">
+            <span>📸</span>Scan
+        </div>
+        <div class="nav-item" onclick="window.location.href='map.html'">
+            <span>🗺️</span>Map
+        </div>
+        <div class="nav-item" onclick="window.location.href='history.html'">
+            <span>📜</span>History
+        </div>
+        <div class="nav-item" onclick="window.location.href='analytics.html'">
+            <span>📊</span>Stats
+        </div>
+    </div>
+</div>
+
+<script src="db.js"></script>
+<script>
+    function toggleTheme() {
+        document.documentElement.dataset.theme = 
+            document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    }
+
+    function formatLabel(value) {
+        if (!value) return 'Unknown';
+        return value.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    function formatTime(value) {
+        if (!value) return 'Just now';
+        try {
+            const parsed = new Date(value);
+            if (!isNaN(parsed)) return parsed.toLocaleString();
+        } catch (error) {}
+        return value;
+    }
+
+    function renderDashboard(scans) {
+        const total = scans.length;
+        const healthy = scans.filter(scan => (scan.diseaseKey || '').toLowerCase().includes('healthy')).length;
+        const diseased = total - healthy;
+        const today = new Date().toLocaleDateString();
+        const todayScans = scans.filter(scan => {
+            try { return new Date(scan.timestamp).toLocaleDateString() === today; } catch (error) { return false; }
+        }).length;
+
+        const diseaseCounts = scans.reduce((acc, scan) => {
+            const key = scan.diseaseKey || 'unknown';
+            acc[key] = (acc[key] || 0) + 1;
+            return acc;
+        }, {});
+
+        const topDisease = Object.entries(diseaseCounts).sort((a, b) => b[1] - a[1])[0];
+
+        document.getElementById('stat-total').textContent = total;
+        document.getElementById('stat-healthy').textContent = healthy;
+        document.getElementById('stat-diseased').textContent = diseased;
+
+        const insightGrid = document.getElementById('insight-grid');
+        if (insightGrid) {
+            insightGrid.innerHTML = `
+                <div class="insight-card">
+                    <span class="insight-label">Most common issue</span>
+                    <strong class="insight-value">${topDisease ? formatLabel(topDisease[0]) : 'No data yet'}</strong>
+                    <span class="insight-detail">${topDisease ? `${topDisease[1]} detections` : 'Start scanning to build insights'}</span>
+                </div>
+                <div class="insight-card">
+                    <span class="insight-label">Today's activity</span>
+                    <strong class="insight-value">${todayScans}</strong>
+                    <span class="insight-detail">scans logged today</span>
+                </div>
+                <div class="insight-card">
+                    <span class="insight-label">Attention level</span>
+                    <strong class="insight-value">${diseased > 0 ? 'High' : 'Low'}</strong>
+                    <span class="insight-detail">${diseased > 0 ? `${diseased} scans need follow-up` : 'Everything looks calm'}</span>
+                </div>
+            `;
+        }
+
+        const activityList = document.getElementById('recent-activity-list');
+        if (!activityList) return;
+
+        if (total === 0) {
+            activityList.innerHTML = '<div class="empty-state">No scans yet. Start scanning to populate your farm dashboard.</div>';
+            return;
+        }
+
+        const latest = [...scans]
+            .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0))
+            .slice(0, 5);
+
+        activityList.innerHTML = latest.map(scan => `
+            <div class="recent-item">
+                <div>
+                    <strong>${formatLabel(scan.diseaseKey)}</strong>
+                    <div class="recent-meta">${formatTime(scan.timestamp)}</div>
+                </div>
+                <span class="activity-pill">${scan.confidence || '0%'} </span>
+            </div>
+        `).join('');
+    }
+
+    async function loadDashboardData() {
+        try {
+            await initializeDatabase();
+            if (!window.db) return;
+
+            const transaction = window.db.transaction(['scans'], 'readonly');
+            const store = transaction.objectStore('scans');
+            const request = store.getAll();
+
+            request.onsuccess = () => {
+                renderDashboard(request.result || []);
+            };
+
+            request.onerror = () => {
+                renderDashboard([]);
+            };
+        } catch (error) {
+            console.error('Dashboard data load failed:', error);
+            renderDashboard([]);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadDashboardData);
+</script>
+</body>
+</html>

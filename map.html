@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MimeaHub • Disease Map</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.0/dist/leaflet.markercluster.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+</head>
+<body>
+<div class="dashboard-shell">
+    <div class="top-bar">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="">
+            <span>MimeaHub</span>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="map-hero">
+            <div>
+                <h1>Community outbreak map</h1>
+                <p>Track disease pressure, see nearby reports, and share alerts from the field.</p>
+            </div>
+            <div class="map-hero-actions">
+                <button id="btn-report-outbreak" class="btn btn-primary">Report outbreak</button>
+                <button id="btn-center-map" class="btn btn-outline">Center map</button>
+            </div>
+        </div>
+
+        <div class="map-toolbar">
+            <select id="map-filter" class="map-select">
+                <option value="all">All reports</option>
+                <option value="tomato">Tomato</option>
+                <option value="potato">Potato</option>
+                <option value="last7">Last 7 days</option>
+            </select>
+            <button id="btn-toggle-heatmap" class="btn btn-outline">Show heatmap</button>
+            <button id="btn-near-me" class="btn btn-outline">Nearby alerts</button>
+        </div>
+
+        <div class="map-status" id="map-status">Loading outbreak data…</div>
+        <div class="map-status-badge" id="pocketbase-status">PocketBase status: checking…</div>
+
+        <div class="map-grid">
+            <div class="card map-card">
+                <div id="disease-map"></div>
+            </div>
+            <div class="card map-side-card">
+                <h3>Live summary</h3>
+                <div class="map-stat-grid">
+                    <div class="map-stat">
+                        <span>Total reports</span>
+                        <strong id="stat-total">0</strong>
+                    </div>
+                    <div class="map-stat">
+                        <span>Community</span>
+                        <strong id="stat-community">0</strong>
+                    </div>
+                    <div class="map-stat">
+                        <span>Local reports</span>
+                        <strong id="stat-local">0</strong>
+                    </div>
+                    <div class="map-stat">
+                        <span>Today</span>
+                        <strong id="stat-today">0</strong>
+                    </div>
+                </div>
+                <div class="map-sync-pill" id="map-sync-pill">Sync status: standby</div>
+                <div class="report-list" id="report-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
+        <div class="nav-item" onclick="window.location.href='scan.html'"><span>📸</span>Scan</div>
+        <div class="nav-item active"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
+        <div class="nav-item" onclick="window.location.href='analytics.html'"><span>📊</span>Stats</div>
+    </div>
+</div>
+
+<div id="report-modal" class="map-modal hidden">
+    <div class="map-modal-card">
+        <h3>Report a community outbreak</h3>
+        <label for="report-disease">Disease</label>
+        <select id="report-disease" class="map-select">
+            <option value="tomato late blight">Tomato Late Blight</option>
+            <option value="tomato early blight">Tomato Early Blight</option>
+            <option value="tomato mosaic virus">Tomato Mosaic Virus</option>
+            <option value="potato late blight">Potato Late Blight</option>
+            <option value="potato early blight">Potato Early Blight</option>
+        </select>
+        <label for="report-notes">Notes</label>
+        <textarea id="report-notes" rows="4" placeholder="Add a short note about what you saw..."></textarea>
+        <div class="modal-actions">
+            <button id="cancel-report" class="btn btn-outline">Cancel</button>
+            <button id="submit-report" class="btn btn-primary">Save report</button>
+        </div>
+    </div>
+</div>
+
+<script src="db.js"></script>
+<script type="module" src="pocketbase-client.js?v=20260801"></script>
+<script src="map.js"></script>
+</body>
+</html>

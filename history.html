@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111f">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>Scan History - MimeaHub</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-shell">
+    <header class="app-navbar" role="banner">
+        <a href="dashboard.html">← Dashboard</a>
+        <h2>Scan History</h2>
+    </header>
+
+    <main style="padding:30px;" role="main">
+        <table class="history-table" aria-label="Scan history table" style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr><th>Date</th><th>Crop</th><th>Diagnosis</th><th>Confidence</th><th>Action</th></tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+        </table>
+    </main>
+</div>
+
+<script src="db.js?v=20260801"></script>
+<script src="history.js?v=20260801"></script>
+</body>
+</html>

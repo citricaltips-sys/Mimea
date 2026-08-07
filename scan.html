@@ -1,0 +1,141 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111f">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>MimeaHub • Scan</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-shell">
+    <div class="top-bar" role="banner">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="MimeaHub logo">
+            <span>MimeaHub</span>
+        </div>
+        <div style="display:flex; gap:12px; align-items:center;">
+            <span id="location-display" style="color:var(--text-secondary); font-size:13px;">Location: Nairobi, KE</span>
+            <div id="connection-status" class="status-badge status-error" role="status" aria-live="polite">Offline</div>
+            <div id="status" class="status-badge status-loading" role="status" aria-live="polite" style="min-width:150px; text-align:center;">Loading AI Engine...</div>
+        </div>
+    </div>
+
+    <div class="content" style="padding:24px; display:grid; grid-template-columns:1.35fr 0.95fr; gap:24px;">
+        <main>
+            <div class="card" style="padding:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;">
+                    <div>
+                        <h1 style="margin:0; font-size:2rem;">Leaf Scanner</h1>
+                        <p style="margin:6px 0 0; color:var(--text-secondary);">Use camera or upload a leaf image for diagnosis.</p>
+                    </div>
+                    <select id="language-select" class="btn btn-outline" style="padding:10px 14px; background:rgba(255,255,255,0.04); color:var(--text-primary); border:1px solid rgba(255,255,255,0.12);">
+                        <option value="en">English</option>
+                        <option value="sw">Kiswahili</option>
+                    </select>
+                </div>
+
+                <div class="camera-area" style="background:linear-gradient(145deg, rgba(7,17,31,0.95), rgba(15,23,42,0.95)); border-radius:24px; border:1px solid rgba(255,255,255,0.1); min-height:380px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);">
+                    <video id="webcam" autoplay playsinline class="hidden" style="width:100%; height:100%; object-fit:cover; display:block;"></video>
+                    <img id="image-preview" class="hidden" alt="Uploaded leaf" style="width:100%; height:100%; object-fit:cover; display:block;">
+                    <div id="placeholder-text" class="camera-overlay">Upload a leaf image or start the camera to diagnose crop disease.</div>
+                </div>
+
+                <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin-top:18px;">
+                    <button id="btn-webcam" class="btn btn-primary" style="padding:12px 18px;" aria-label="Start camera">Start Camera</button>
+                    <button id="btn-capture" class="btn btn-outline hidden" style="padding:12px 18px;" aria-label="Capture image">Capture & Diagnose</button>
+                    <button id="btn-demo" class="btn btn-demo" style="padding:12px 18px;" aria-label="Load demo diagnosis">Try Demo</button>
+                    <label for="file-upload" class="btn btn-outline" style="padding:12px 18px; cursor:pointer;" aria-label="Upload leaf image">Upload Image</label>
+                    <input id="file-upload" type="file" accept="image/*" class="hidden" aria-hidden="true">
+                </div>
+
+                <div style="display:flex; flex-wrap:wrap; gap:12px; margin-top:18px;">
+                    <button id="btn-export-report" class="btn btn-primary">Copy Report</button>
+                    <button id="btn-export-pdf" class="btn btn-outline">Export PDF</button>
+                    <button id="btn-clear-history" class="btn btn-outline" style="margin-left:auto;">Clear History</button>
+                </div>
+            </div>
+
+            <div id="result-card" class="card hidden" style="padding:24px; margin-top:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;">
+                    <div>
+                        <h2 style="margin-top:0;">Diagnosis Result</h2>
+                        <p style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">Your AI-powered diagnosis summary.</p>
+                    </div>
+                    <div style="padding:8px 12px; border-radius:999px; background:rgba(74,222,128,0.12); color:#86efac; font-size:0.8rem; font-weight:700;">Verified</div>
+                </div>
+                <p id="disease-name" style="font-size:1.8rem; margin:12px 0;">Unknown</p>
+                <div id="result-badges" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;"></div>
+                <div id="diagnostic-summary" style="display:grid; gap:10px; margin-bottom:16px;"></div>
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:18px;">
+                    <div style="color:var(--text-secondary); font-size:14px;"><strong>Confidence</strong><div id="confidence-level">0%</div></div>
+                    <div style="width:80px; height:80px; position:relative;">
+                        <svg viewBox="0 0 120 120" style="width:100%; height:100%;">
+                            <circle cx="60" cy="60" r="18" fill="#111827" stroke="rgba(255,255,255,0.1)" stroke-width="16"></circle>
+                            <circle id="ring-progress-fill" cx="60" cy="60" r="18" fill="none" stroke="#3fb950" stroke-width="16" stroke-linecap="round" stroke-dasharray="0 113" transform="rotate(-90 60 60)"></circle>
+                        </svg>
+                        <span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--text-secondary); font-size:12px;">Score</span>
+                    </div>
+                </div>
+
+                <div id="prediction-result" style="display:grid; gap:14px;">
+                    <div id="treatment-section" style="display:grid; gap:14px;">
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Organic Treatment</strong><p id="treatment-organic" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Chemical Treatment</strong><p id="treatment-chemical" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Prevention</strong><p id="treatment-prevention" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                    </div>
+                </div>
+            </div>
+
+            <canvas id="processing-canvas" class="hidden"></canvas>
+        </main>
+
+        <aside style="display:grid; gap:24px;">
+            <div class="card" style="padding:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;">
+                    <div>
+                        <h2 id="lbl-history" style="margin:0; font-size:1.4rem;">Scan History</h2>
+                        <p style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">Recent diagnoses stored locally.</p>
+                    </div>
+                    <input id="search-history" type="search" placeholder="Search by disease or location..." style="padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background:rgba(255,255,255,0.04); color:var(--text-primary); width:150px;">
+                </div>
+                <div id="history-list" style="display:grid; gap:12px; max-height:460px; overflow:auto;"></div>
+            </div>
+
+            <div class="card" style="padding:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+                    <div>
+                        <h2 id="lbl-analytics" style="margin:0; font-size:1.4rem;">Disease Analytics</h2>
+                        <p style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">Insights from your scan history.</p>
+                    </div>
+                </div>
+                <div style="display:grid; gap:12px; margin-bottom:18px;">
+                    <div style="display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px;">
+                        <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.06);"><span style="color:var(--text-secondary);">Total</span><strong id="stat-total" style="display:block; font-size:1.6rem; margin-top:8px;">0</strong></div>
+                        <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.06);"><span style="color:var(--text-secondary);">Healthy</span><strong id="stat-healthy" style="display:block; font-size:1.6rem; margin-top:8px;">0</strong></div>
+                        <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.06);"><span style="color:var(--text-secondary);">Diseased</span><strong id="stat-diseased" style="display:block; font-size:1.6rem; margin-top:8px;">0</strong></div>
+                        <div style="background:rgba(255,255,255,0.04); padding:16px; border-radius:16px; border:1px solid rgba(255,255,255,0.06);"><span style="color:var(--text-secondary);">Today</span><strong id="stat-today" style="display:block; font-size:1.6rem; margin-top:8px;">0</strong></div>
+                    </div>
+                </div>
+                <div id="analytics-chart-container" style="display:grid; gap:12px; max-height:260px; overflow:auto;"></div>
+            </div>
+        </aside>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
+        <div class="nav-item active"><span>📸</span>Scan</div>
+        <div class="nav-item" onclick="window.location.href='map.html'"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
+        <div class="nav-item" onclick="window.location.href='analytics.html'"><span>📊</span>Stats</div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
+<script src="db.js?v=20260801"></script>
+<script src="auth.js?v=20260801"></script>
+<script type="module" src="app.js?v=20260801"></script>
+</body>
+</html>

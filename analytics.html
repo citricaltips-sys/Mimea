@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111f">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>MimeaHub • Analytics</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-shell">
+    <div class="top-bar" role="banner">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="MimeaHub logo">
+            <span>MimeaHub</span>
+        </div>
+    </div>
+
+    <main class="content" role="main">
+        <h1 style="margin-bottom: 20px;">Analytics</h1>
+
+        <div class="card">
+            <h3 style="margin-bottom: 15px;">Crop Health Overview</h3>
+            <div id="analytics-summary" style="display: grid; gap: 16px;"></div>
+        </div>
+
+        <div class="card">
+            <h3>Disease Trend</h3>
+            <div id="analytics-chart" style="display: grid; gap: 16px; max-height: 360px; overflow:auto;"></div>
+        </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
+        <div class="nav-item" onclick="window.location.href='scan.html'"><span>📸</span>Scan</div>
+        <div class="nav-item" onclick="window.location.href='map.html'"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
+        <div class="nav-item active"><span>📊</span>Stats</div>
+    </div>
+</div>
+<script src="db.js?v=20260801"></script>
+<script src="analytics.js?v=20260801"></script>
+</body>
+</html>

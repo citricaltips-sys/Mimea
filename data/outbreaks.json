@@ -1,0 +1,16 @@
+[
+  {
+    "id": "1785586802576-1qm3lp",
+    "diseaseKey": "tomato late blight",
+    "diseaseName": "Tomato Late Blight",
+    "cropType": "",
+    "confidence": 0,
+    "latitude": -1.2921,
+    "longitude": 36.8219,
+    "notes": "Test report",
+    "timestamp": "2026-08-01T12:20:02.576Z",
+    "source": "community",
+    "syncStatus": "synced",
+    "isOutbreak": true
+  }
+]
