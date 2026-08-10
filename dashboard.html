@@ -56,6 +56,10 @@
         </div>
     </div>
 
+    <div id="admin-shortcut" style="display:none; text-align:center; padding:8px;">
+        <a href="admin.html" style="color:rgba(255,255,255,0.15); font-size:0.75rem; text-decoration:none;">Admin</a>
+    </div>
+
     <!-- Bottom Navigation -->
     <div class="bottom-nav">
         <div class="nav-item active" onclick="window.location.href='dashboard.html'">
@@ -73,10 +77,14 @@
         <div class="nav-item" onclick="window.location.href='analytics.html'">
             <span>📊</span>Stats
         </div>
+        <div class="nav-item" onclick="window.location.href='market.html'">
+            <span>🏪</span>Market
+        </div>
     </div>
 </div>
 
 <script src="db.js"></script>
+<script src="auth.js"></script>
 <script>
     function toggleTheme() {
         document.documentElement.dataset.theme = 
@@ -185,6 +193,11 @@
     }
 
     document.addEventListener('DOMContentLoaded', loadDashboardData);
+    
+    if (window.auth && window.auth.isAdmin()) {
+        var shortcut = document.getElementById('admin-shortcut');
+        if (shortcut) shortcut.style.display = 'block';
+    }
 </script>
 </body>
 </html>

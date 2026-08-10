@@ -45,7 +45,7 @@
         </div>
 
         <div class="map-status" id="map-status">Loading outbreak data…</div>
-        <div class="map-status-badge" id="pocketbase-status">PocketBase status: checking…</div>
+        <div class="map-status-badge" id="supabase-status">Supabase status: checking…</div>
 
         <div class="map-grid">
             <div class="card map-card">
@@ -80,9 +80,10 @@
     <div class="bottom-nav">
         <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
         <div class="nav-item" onclick="window.location.href='scan.html'"><span>📸</span>Scan</div>
-        <div class="nav-item active"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='map.html'"><span>🗺️</span>Map</div>
         <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
         <div class="nav-item" onclick="window.location.href='analytics.html'"><span>📊</span>Stats</div>
+        <div class="nav-item" onclick="window.location.href='market.html'"><span>🏪</span>Market</div>
     </div>
 </div>
 
@@ -107,7 +108,7 @@
 </div>
 
 <script src="db.js"></script>
-<script type="module" src="pocketbase-client.js?v=20260801"></script>
+    <script type="module" src="supabase-client.js?v=20260801"></script>
 <script src="map.js"></script>
 </body>
 </html>

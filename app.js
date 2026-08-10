@@ -1,19 +1,19 @@
-import { pb, syncOutbreakToPocketBase, loadOutbreaksFromPocketBase } from './pocketbase-client.js';
+import { supabase, syncToSupabase, loadFromSupabase, testSupabaseConnection } from './supabase-client.js';
 
-async function syncOutbreakToPocketBaseLocal(outbreak) {
+async function syncToSupabaseLocal(table, record) {
     try {
-        return await syncOutbreakToPocketBase(outbreak);
+        return await syncToSupabase(table, record);
     } catch (error) {
-        console.error('PocketBase sync failed:', error);
+        console.error(`Supabase sync failed for ${table}:`, error);
         throw error;
     }
 }
 
-async function loadOutbreaksFromPocketBaseLocal() {
+async function loadFromSupabaseLocal(table) {
     try {
-        return await loadOutbreaksFromPocketBase();
+        return await loadFromSupabase(table);
     } catch (error) {
-        console.error('Could not load reports from PocketBase:', error);
+        console.error(`Could not load from Supabase ${table}:`, error);
         return [];
     }
 }
@@ -385,9 +385,18 @@ function fetchCoordinates() {
 function saveScanToDB(diseaseKey, confidenceValue) {
     if (!window.db) return;
     try {
+        const record = {
+            diseaseKey,
+            confidence: confidenceValue,
+            timestamp: new Date().toLocaleString(),
+            coordinates: currentGPS,
+            syncStatus: 'pending',
+            isOutbreak: false,
+            source: 'local'
+        };
         const transaction = window.db.transaction(["scans"], "readwrite");
         const store = transaction.objectStore("scans");
-        store.add({ diseaseKey, confidence: confidenceValue, timestamp: new Date().toLocaleString(), coordinates: currentGPS });
+        store.add(record);
         transaction.oncomplete = () => loadHistoryFromDB();
     } catch (error) { console.error('Save error:', error); }
 }
@@ -631,6 +640,7 @@ function setupEventListeners() {
         showToast('Back online — syncing saved reports', 'success');
         updateConnectionBadge(true);
         syncPendingOutbreaks();
+        syncPendingScans();
     });
 
     window.addEventListener('offline', () => {
@@ -883,23 +893,23 @@ if (themeToggleBtn) {
 }
 
 // ==========================================================================
-// POCKETBASE SYNC FOR COMMUNITY OUTBREAKS
+// SUPABASE SYNC FOR COMMUNITY OUTBREAKS
 // ==========================================================================
 
-function normalizeOutbreakForPocketBase(outbreak) {
+function normalizeOutbreakForSupabase(outbreak) {
     const diseaseKey = outbreak.diseaseKey || outbreak.disease_key || '';
     return {
-        diseaseKey: diseaseKey.toLowerCase().trim(),
-        diseaseName: outbreak.diseaseName || outbreak.disease_name || diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
-        cropType: outbreak.cropType || (diseaseKey.includes('tomato') ? 'Tomato' : 'Potato'),
+        disease_key: diseaseKey.toLowerCase().trim(),
+        disease_name: outbreak.diseaseName || outbreak.disease_name || diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
+        crop_type: outbreak.cropType || (diseaseKey.includes('tomato') ? 'Tomato' : 'Potato'),
         confidence: Number(outbreak.confidence) || 0,
         latitude: outbreak.latitude ?? null,
         longitude: outbreak.longitude ?? null,
         notes: outbreak.notes || '',
         timestamp: outbreak.timestamp || new Date().toISOString(),
         source: outbreak.source || 'community',
-        syncStatus: 'pending',
-        isOutbreak: true
+        sync_status: 'synced',
+        is_outbreak: true
     };
 }
 
@@ -952,7 +962,7 @@ async function saveOutbreak(diseaseKey, confidence, notes = "") {
             syncPendingOutbreaks()
                 .then(successCount => {
                     if (successCount > 0) {
-                        showToast('Successfully synced to PocketBase', 'success');
+                        showToast('Successfully synced to Supabase', 'success');
                     }
                 })
                 .catch(err => {
@@ -969,7 +979,7 @@ async function saveOutbreak(diseaseKey, confidence, notes = "") {
     }
 }
 
-// Sync pending outbreaks to PocketBase
+// Sync pending outbreaks to Supabase
 async function syncPendingOutbreaks() {
     if (!navigator.onLine || !window.db) return 0;
 
@@ -982,15 +992,15 @@ async function syncPendingOutbreaks() {
         request.onerror = () => reject(request.error);
     });
 
-    const outbreaksToSync = pending.filter(o => o.syncStatus === "pending" || o.syncStatus !== "synced");
+    const outbreaksToSync = pending.filter(o => o.isOutbreak && (o.syncStatus === "pending" || o.syncStatus !== "synced"));
     if (outbreaksToSync.length === 0) return 0;
 
     let successCount = 0;
 
     for (const outbreak of outbreaksToSync) {
         try {
-            const payload = normalizeOutbreakForPocketBase(outbreak);
-            const syncedRecord = await syncOutbreakToPocketBaseLocal(payload);
+            const payload = normalizeOutbreakForSupabase(outbreak);
+            const syncedRecord = await syncToSupabaseLocal('outbreaks', payload);
 
             outbreak.syncStatus = "synced";
             outbreak.remoteId = syncedRecord.id;
@@ -1013,21 +1023,21 @@ async function syncPendingOutbreaks() {
     return successCount;
 }
 
-// Get community outbreaks from PocketBase
+// Get community outbreaks from Supabase
 async function getCommunityOutbreaks() {
     try {
-        const remoteReports = await loadOutbreaksFromPocketBaseLocal();
+        const remoteReports = await loadFromSupabaseLocal('outbreaks');
         return (remoteReports || []).map(item => ({
             ...item,
-            diseaseKey: item.diseaseKey || item.disease_key || '',
-            diseaseName: item.diseaseName || item.disease_name || '',
+            diseaseKey: item.disease_key || item.diseaseKey || '',
+            diseaseName: item.disease_name || item.diseaseName || '',
             latitude: item.latitude ?? null,
             longitude: item.longitude ?? null,
             notes: item.notes || '',
-            timestamp: item.timestamp || item.created || item.created_at || new Date().toISOString(),
+            timestamp: item.timestamp || item.created_at || new Date().toISOString(),
             source: item.source || 'community',
-            syncStatus: item.syncStatus || item.sync_status || 'synced',
-            isOutbreak: item.isOutbreak ?? item.is_outbreak ?? true
+            syncStatus: item.sync_status || item.syncStatus || 'synced',
+            isOutbreak: item.is_outbreak ?? item.isOutbreak ?? true
         }));
     } catch (err) {
         console.error('Failed to load community outbreaks:', err);
@@ -1035,16 +1045,80 @@ async function getCommunityOutbreaks() {
     }
 }
 
+// Sync pending scans to Supabase
+async function syncPendingScans() {
+    if (!navigator.onLine || !window.db) return 0;
+
+    const tx = window.db.transaction(["scans"], "readwrite");
+    const store = tx.objectStore("scans");
+
+    const pending = await new Promise((resolve, reject) => {
+        const request = store.getAll();
+        request.onsuccess = () => resolve(request.result || []);
+        request.onerror = () => reject(request.error);
+    });
+
+    const scansToSync = pending.filter(s => !s.isOutbreak && s.syncStatus !== 'synced');
+    if (scansToSync.length === 0) return 0;
+
+    let successCount = 0;
+
+    for (const scan of scansToSync) {
+        try {
+            const payload = normalizeScanForSupabase(scan);
+            const syncedRecord = await syncToSupabaseLocal('scans', payload);
+
+            scan.syncStatus = 'synced';
+            scan.remoteId = syncedRecord.id;
+            await new Promise((resolve, reject) => {
+                const updateRequest = store.put(scan);
+                updateRequest.onsuccess = () => resolve();
+                updateRequest.onerror = () => reject(updateRequest.error);
+            });
+            successCount++;
+        } catch (err) {
+            console.error('Failed to sync one scan:', err);
+            showToast('Sync failed for one scan. Will retry later.', 'warning', 6000);
+        }
+    }
+
+    if (successCount > 0) {
+        loadHistoryFromDB();
+    }
+
+    return successCount;
+}
+
+function normalizeScanForSupabase(scan) {
+    const diseaseKey = scan.diseaseKey || scan.disease_key || '';
+    return {
+        disease_key: diseaseKey.toLowerCase().trim(),
+        disease_name: scan.diseaseName || scan.disease_name || diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
+        crop_type: scan.cropType || (diseaseKey.includes('tomato') ? 'Tomato' : 'Potato'),
+        confidence: Number(scan.confidence) || 0,
+        timestamp: scan.timestamp || new Date().toISOString(),
+        source: scan.source || 'local',
+        coordinates: scan.coordinates || '',
+        sync_status: 'pending',
+        is_outbreak: false,
+        notes: scan.notes || '',
+        latitude: scan.latitude ?? null,
+        longitude: scan.longitude ?? null
+    };
+}
+
 // Auto sync when back online
 window.addEventListener('online', () => {
-    console.log('🌐 Back online - syncing outbreaks...');
+    console.log('🌐 Back online - syncing data...');
     syncPendingOutbreaks();
+    syncPendingScans();
 });
 
 // Make functions global so map.js can access them
 window.saveOutbreak = saveOutbreak;
 window.getCommunityOutbreaks = getCommunityOutbreaks;
 window.syncPendingOutbreaks = syncPendingOutbreaks;
+window.syncPendingScans = syncPendingScans;
 
 // ==========================================================================
 // REAL-TIME NEARBY OUTBREAK ALERTS
@@ -1083,8 +1157,14 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 
 // Subscribe to real-time outbreaks
 function startRealtimeAlerts() {
-    getUserLocation();
-    console.warn('Realtime alerts are disabled until PocketBase realtime subscriptions are configured.');
+    if (!window.supabase) return;
+    window.supabase
+        .channel('outbreaks-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'outbreaks' }, payload => {
+            console.log('New outbreak reported:', payload.new);
+            showToast('New outbreak reported nearby!', 'warning');
+        })
+        .subscribe();
 }
 
 // Start alerts when app loads

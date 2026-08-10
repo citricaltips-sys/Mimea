@@ -2,7 +2,8 @@
 // AUTHENTICATION SYSTEM WITH TOASTS
 // ==========================================================================
 
-// Toast function defined globally for landing page
+var ADMIN_EMAIL = 'admin@mimeahub.com';
+
 function showLandingToast(message, type) {
     type = type || 'info';
     var existing = document.querySelector('.landing-toast');
@@ -80,6 +81,10 @@ function showLandingToast(message, type) {
 
         getUserData() {
             return this.currentUser;
+        }
+
+        isAdmin() {
+            return this.currentUser !== null && this.currentUser.email === ADMIN_EMAIL;
         }
     }
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111f">
+    <link rel="manifest" href="manifest.webmanifest">
+    <title>Market - MimeaHub</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard-shell">
+    <div class="top-bar">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="">
+            <span>MimeaHub</span>
+        </div>
+        <h1 style="font-size:1.1rem; font-weight:700;">Market Prices & Agrovets</h1>
+    </div>
+
+    <div class="content" style="padding:24px; display:grid; gap:20px;">
+        <div class="card" style="padding:20px; background:linear-gradient(135deg, rgba(74,222,128,0.12), rgba(56,189,248,0.08));">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div>
+                    <h2 style="margin:0 0 4px;">Kenya Market Intelligence</h2>
+                    <p style="margin:0; color:var(--text-muted); font-size:0.9rem;">Vegetable prices and certified agrovets near you.</p>
+                </div>
+                <button id="btn-refresh-market" class="btn btn-primary">Refresh</button>
+            </div>
+        </div>
+
+        <div class="market-tabs">
+            <button class="market-tab active" data-tab="prices">🥬 Vegetable Prices</button>
+            <button class="market-tab" data-tab="agrovets">🌱 Certified Agrovets</button>
+        </div>
+
+        <div id="tab-prices" class="market-tab-content">
+            <div class="card" style="padding:16px; margin-bottom:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                <label for="market-county" style="font-weight:600;">County</label>
+                <select id="market-county" class="btn btn-outline" style="padding:10px 14px; background:rgba(255,255,255,0.04); color:var(--text-primary); border:1px solid rgba(255,255,255,0.12);">
+                    <option value="all">All Counties</option>
+                    <option value="Nairobi">Nairobi</option>
+                    <option value="Kiambu">Kiambu</option>
+                    <option value="Nakuru">Nakuru</option>
+                    <option value="Kisumu">Kisumu</option>
+                    <option value="Mombasa">Mombasa</option>
+                    <option value="Eldoret">Eldoret</option>
+                    <option value="Nyeri">Nyeri</option>
+                    <option value="Meru">Meru</option>
+                    <option value="Kericho">Kericho</option>
+                    <option value="Machakos">Machakos</option>
+                    <option value="Garissa">Garissa</option>
+                    <option value="Kajiado">Kajiado</option>
+                    <option value="Kilifi">Kilifi</option>
+                </select>
+                <span id="price-last-updated" style="color:var(--text-muted); font-size:0.85rem;"></span>
+            </div>
+            <div id="prices-list" style="display:grid; gap:10px;"></div>
+        </div>
+
+        <div id="tab-agrovets" class="market-tab-content hidden">
+            <div class="card" style="padding:16px; margin-bottom:12px; display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                <label for="agrovet-county" style="font-weight:600;">County</label>
+                <select id="agrovet-county" class="btn btn-outline" style="padding:10px 14px; background:rgba(255,255,255,0.04); color:var(--text-primary); border:1px solid rgba(255,255,255,0.12);">
+                    <option value="all">All Counties</option>
+                    <option value="Nairobi">Nairobi</option>
+                    <option value="Kiambu">Kiambu</option>
+                    <option value="Nakuru">Nakuru</option>
+                    <option value="Kisumu">Kisumu</option>
+                    <option value="Mombasa">Mombasa</option>
+                    <option value="Eldoret">Eldoret</option>
+                    <option value="Nyeri">Nyeri</option>
+                    <option value="Meru">Meru</option>
+                    <option value="Kericho">Kericho</option>
+                    <option value="Machakos">Machakos</option>
+                    <option value="Garissa">Garissa</option>
+                    <option value="Kajiado">Kajiado</option>
+                    <option value="Kilifi">Kilifi</option>
+                </select>
+            </div>
+            <div id="agrovets-list" style="display:grid; gap:12px;"></div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
+        <div class="nav-item" onclick="window.location.href='scan.html'"><span>📸</span>Scan</div>
+        <div class="nav-item" onclick="window.location.href='map.html'"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
+        <div class="nav-item" onclick="window.location.href='analytics.html'"><span>📊</span>Stats</div>
+        <div class="nav-item active"><span>🏪</span>Market</div>
+    </div>
+</div>
+
+<script src="db.js?v=20260801"></script>
+<script type="module" src="supabase-client.js?v=20260801"></script>
+<script src="market.js?v=20260801"></script>
+</body>
+</html>

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#07111f">
+    <title>Admin - Market Management | MimeaHub</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .admin-shell { max-width: 1200px; margin: 0 auto; padding: 24px 24px 120px; }
+        .admin-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .admin-tab { padding: 12px 20px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--text-muted); font-weight: 700; cursor: pointer; }
+        .admin-tab.active { background: rgba(74,222,128,0.15); color: var(--accent-strong); border-color: rgba(74,222,128,0.4); }
+        .admin-tab-content { display: none; }
+        .admin-tab-content.active { display: block; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-muted); }
+        .form-group input, .form-group select, .form-group textarea { padding: 10px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.04); color: var(--text); font-family: inherit; }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .admin-card { padding: 16px; border-radius: 18px; background: var(--card); border: 1px solid var(--border); margin-bottom: 12px; }
+        .admin-card h4 { margin: 0 0 8px; }
+        .admin-card p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+        .admin-actions { display: flex; gap: 8px; margin-top: 12px; }
+        .btn-sm { padding: 8px 14px; border-radius: 999px; border: none; font-weight: 700; font-size: 0.85rem; cursor: pointer; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-danger { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+        .btn-outline { background: transparent; color: var(--text); border: 1px solid rgba(255,255,255,0.15); }
+        .empty-state { color: var(--text-muted); padding: 40px; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="dashboard-shell">
+    <div class="top-bar">
+        <div class="brand">
+            <img src="/Images/S-Logo.png" width="40" height="40" alt="">
+            <span>MimeaHub</span>
+        </div>
+        <h1 style="font-size:1.1rem; font-weight:700;">Admin — Market Management</h1>
+    </div>
+
+    <div class="admin-shell">
+        <div class="admin-tabs">
+            <button class="admin-tab active" data-tab="prices">🥬 Prices</button>
+            <button class="admin-tab" data-tab="agrovets">🌱 Agrovets</button>
+        </div>
+
+        <div id="tab-prices" class="admin-tab-content active">
+            <div class="admin-card">
+                <h3 id="price-form-title">Add Price</h3>
+                <form id="price-form" class="form-grid" style="margin-top:12px;">
+                    <input type="hidden" id="price-id">
+                    <div class="form-group"><label>Crop</label><input type="text" id="price-crop" required></div>
+                    <div class="form-group"><label>Variety</label><input type="text" id="price-variety"></div>
+                    <div class="form-group"><label>County</label><input type="text" id="price-county" required></div>
+                    <div class="form-group"><label>Price (KES)</label><input type="number" id="price-price" required></div>
+                    <div class="form-group"><label>Unit</label><select id="price-unit"><option>kg</option><option>head</option><option>bunch</option><option>bag</option></select></div>
+                    <div class="form-group"><label>Trend</label><select id="price-trend"><option value="stable">Stable</option><option value="up">Up</option><option value="down">Down</option></select></div>
+                    <div class="form-group"><label>Change</label><input type="text" id="price-change" value="0%"></div>
+                    <div class="form-group"><label>Market</label><input type="text" id="price-market"></div>
+                    <div style="grid-column: 1 / -1; display:flex; gap:10px;">
+                        <button type="submit" class="btn btn-primary">Save Price</button>
+                        <button type="button" class="btn btn-outline" id="price-cancel" style="display:none;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+            <div id="prices-admin-list"></div>
+        </div>
+
+        <div id="tab-agrovets" class="admin-tab-content">
+            <div class="admin-card">
+                <h3 id="agrovet-form-title">Add Agrovet</h3>
+                <form id="agrovet-form" class="form-grid" style="margin-top:12px;">
+                    <input type="hidden" id="agrovet-id">
+                    <div class="form-group"><label>Name</label><input type="text" id="agrovet-name" required></div>
+                    <div class="form-group"><label>County</label><input type="text" id="agrovet-county" required></div>
+                    <div class="form-group"><label>Town</label><input type="text" id="agrovet-town"></div>
+                    <div class="form-group"><label>Phone</label><input type="text" id="agrovet-phone"></div>
+                    <div class="form-group"><label>Services (comma separated)</label><input type="text" id="agrovet-services"></div>
+                    <div class="form-group"><label>Certified</label><select id="agrovet-certified"><option value="true">Yes</option><option value="false">No</option></select></div>
+                    <div class="form-group"><label>Rating</label><input type="number" id="agrovet-rating" step="0.1" value="4.0"></div>
+                    <div class="form-group"><label>Latitude</label><input type="number" step="0.0001" id="agrovet-lat"></div>
+                    <div class="form-group"><label>Longitude</label><input type="number" step="0.0001" id="agrovet-lng"></div>
+                    <div style="grid-column: 1 / -1; display:flex; gap:10px;">
+                        <button type="submit" class="btn btn-primary">Save Agrovet</button>
+                        <button type="button" class="btn btn-outline" id="agrovet-cancel" style="display:none;">Cancel</button>
+                    </div>
+                </form>
+            </div>
+            <div id="agrovets-admin-list"></div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <div class="nav-item" onclick="window.location.href='dashboard.html'"><span>🏠</span>Home</div>
+        <div class="nav-item" onclick="window.location.href='scan.html'"><span>📸</span>Scan</div>
+        <div class="nav-item" onclick="window.location.href='map.html'"><span>🗺️</span>Map</div>
+        <div class="nav-item" onclick="window.location.href='history.html'"><span>📜</span>History</div>
+        <div class="nav-item" onclick="window.location.href='analytics.html'"><span>📊</span>Stats</div>
+        <div class="nav-item" onclick="window.location.href='market.html'"><span>🏪</span>Market</div>
+    </div>
+</div>
+
+<script src="auth.js?v=20260801"></script>
+<script type="module" src="supabase-client.js?v=20260801"></script>
+<script src="admin.js?v=20260801"></script>
+</body>
+</html>

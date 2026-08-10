@@ -175,9 +175,9 @@ async function loadOutbreakData() {
         }
     }
 
-    if (navigator.onLine && typeof window.loadOutbreaksFromPocketBase === 'function') {
+    if (navigator.onLine && typeof window.loadFromSupabase === 'function') {
         try {
-            const remoteReports = await window.loadOutbreaksFromPocketBase();
+            const remoteReports = await window.loadFromSupabase('outbreaks');
             if (Array.isArray(remoteReports) && remoteReports.length > 0) {
                 outbreakReports = [...outbreakReports, ...remoteReports.map(normalizeOutbreakReport)];
             }
@@ -401,8 +401,19 @@ async function submitCommunityReport() {
         localStorage.setItem('mimeahub-community-outbreaks', JSON.stringify(storedReports));
 
         hideReportModal();
-        if (typeof window.syncOutbreakToPocketBase === 'function' && navigator.onLine) {
-            window.syncOutbreakToPocketBase(reportEntry).catch(error => console.warn('Remote report sync skipped:', error));
+        if (typeof window.syncToSupabase === 'function' && navigator.onLine) {
+            try {
+                const syncedRecord = await window.syncToSupabase('outbreaks', reportEntry);
+                if (syncedRecord?.id && window.db) {
+                    const tx = window.db.transaction(['scans'], 'readwrite');
+                    const store = tx.objectStore('scans');
+                    reportEntry.syncStatus = 'synced';
+                    reportEntry.remoteId = syncedRecord.id;
+                    store.put(reportEntry);
+                }
+            } catch (error) {
+                console.warn('Remote report sync skipped:', error);
+            }
         }
         await loadOutbreakData();
         await loadAllMarkers();
@@ -449,45 +460,47 @@ async function initDiseaseMap() {
     await loadOutbreakData();
     await loadAllMarkers();
     setMapStatus('Outbreak map ready', 'success');
-    await updatePocketBaseStatus();
+    await updateSupabaseStatus();
 }
 
-async function updatePocketBaseStatus() {
-    const badge = document.getElementById('pocketbase-status');
+async function updateSupabaseStatus() {
+    const badge = document.getElementById('supabase-status');
     if (!badge) return;
 
     if (!navigator.onLine) {
-        badge.textContent = 'PocketBase status: offline';
+        badge.textContent = 'Supabase status: offline';
         badge.className = 'map-status-badge offline';
         return;
     }
 
-    if (typeof window.testPocketBaseConnection !== 'function') {
-        badge.textContent = 'PocketBase status: unavailable';
-        badge.className = 'map-status-badge error';
-        return;
-    }
-
-    badge.textContent = 'PocketBase status: checking…';
+    badge.textContent = 'Supabase status: checking…';
     badge.className = 'map-status-badge';
 
-    try {
-        const connected = await window.testPocketBaseConnection();
-        if (connected === true) {
-            badge.textContent = 'PocketBase status: online';
-            badge.className = 'map-status-badge online';
-        } else if (connected === 'forbidden') {
-            badge.textContent = 'PocketBase status: restricted';
-            badge.className = 'map-status-badge error';
-        } else {
-            badge.textContent = 'PocketBase status: unavailable';
-            badge.className = 'map-status-badge error';
+    for (let attempt = 0; attempt < 10; attempt++) {
+        if (typeof window.testSupabaseConnection === 'function') {
+            try {
+                const connected = await window.testSupabaseConnection();
+                if (connected === true) {
+                    badge.textContent = 'Supabase status: online';
+                    badge.className = 'map-status-badge online';
+                    return;
+                } else {
+                    badge.textContent = 'Supabase status: unavailable';
+                    badge.className = 'map-status-badge error';
+                    return;
+                }
+            } catch (error) {
+                badge.textContent = 'Supabase status: error';
+                badge.className = 'map-status-badge error';
+                console.warn('Supabase status check failed:', error);
+                return;
+            }
         }
-    } catch (error) {
-        badge.textContent = 'PocketBase status: error';
-        badge.className = 'map-status-badge error';
-        console.warn('PocketBase status check failed:', error);
+        await new Promise(resolve => setTimeout(resolve, 300));
     }
+
+    badge.textContent = 'Supabase status: unavailable';
+    badge.className = 'map-status-badge error';
 }
 
 window.initDiseaseMap = initDiseaseMap;
