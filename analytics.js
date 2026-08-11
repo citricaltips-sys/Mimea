@@ -1,29 +1,23 @@
 async function initializeAnalyticsPage() {
     try {
-        await initializeDatabase();
-        if (!window.db) {
-            await new Promise(resolve => window.addEventListener('databaseReady', resolve, { once: true }));
-        }
         loadAnalytics();
     } catch (error) {
         console.error('Analytics page init failed:', error);
     }
 }
 
-function loadAnalytics() {
-    if (!window.db) return;
-    const transaction = window.db.transaction(['scans'], 'readonly');
-    const store = transaction.objectStore('scans');
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-        const scans = request.result || [];
+async function loadAnalytics() {
+    try {
+        const { data, error } = await window.supabase.from('scans').select('*').order('timestamp', { ascending: false });
+        if (error) throw error;
+        const scans = data || [];
         renderAnalyticsSummary(scans);
         renderAnalyticsChart(scans);
-    };
-    request.onerror = () => {
-        console.error('Failed to load analytics data');
-    };
+    } catch (error) {
+        console.error('Failed to load analytics data:', error);
+        renderAnalyticsSummary([]);
+        renderAnalyticsChart([]);
+    }
 }
 
 function renderAnalyticsSummary(scans) {

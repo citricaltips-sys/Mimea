@@ -280,40 +280,24 @@ function initDOMElements() {
 }
 
 // ==========================================================================
-// SERVICE WORKER
-// ==========================================================================
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js')
-            .then(registration => console.log('ServiceWorker registered'))
-            .catch(error => console.log('ServiceWorker failed:', error));
-    });
-}
-
-// ==========================================================================
 // APP INITIALIZATION
 // ==========================================================================
 async function initializeApp() {
     console.log('Starting app...');
     try {
         initDOMElements();
-        await initializeDatabase();
+        setupEventListeners();
+        updateConnectionBadge(navigator.onLine);
         
-        if (!window.db) {
-            await new Promise(resolve => window.addEventListener('databaseReady', resolve, { once: true }));
-        }
-        
-        console.log('Database ready');
-        loadHistoryFromDB();
+        console.log('Loading history...');
+        await loadHistoryFromSupabase();
         updateStatus('loading');
         
         try {
             model = await tmImage.load(MODEL_URL + "model.json", MODEL_URL + "metadata.json");
             console.log('AI Model loaded');
-            updateStatus('ready');
         } catch (modelError) {
             console.warn('AI Model failed to load, using demo mode:', modelError);
-            updateStatus('ready');
             model = {
                 predict: async () => [
                     { className: 'healthy tomato', probability: 0.95 },
@@ -322,11 +306,11 @@ async function initializeApp() {
                 ]
             };
         }
+        updateStatus('ready');
         
         fetchCoordinates();
         updateLanguageUI();
-        setupEventListeners();
-        updateConnectionBadge(navigator.onLine);
+        if (typeof loadRemediesTab === 'function') loadRemediesTab();
         
         if (window.auth && window.auth.getUserData()) {
             const userGreeting = document.getElementById('user-greeting');
@@ -335,11 +319,11 @@ async function initializeApp() {
             }
         }
         
-        // Initialize map if available
         if (typeof initDiseaseMap === 'function') {
             setTimeout(initDiseaseMap, 1000);
         }
         
+        setInterval(() => updateConnectionBadge(navigator.onLine), 5000);
         console.log('App ready!');
     } catch (error) {
         console.error('App failed:', error);
@@ -362,6 +346,12 @@ function updateStatus(state) {
     }
 }
 
+function updateConnectionBadge(isOnline) {
+    if (!connectionBadge) return;
+    connectionBadge.innerText = isOnline ? 'Online' : 'Offline';
+    connectionBadge.className = isOnline ? 'status-badge status-online' : 'status-badge status-error';
+}
+
 // ==========================================================================
 // GEOLOCATION
 // ==========================================================================
@@ -380,48 +370,101 @@ function fetchCoordinates() {
 }
 
 // ==========================================================================
-// DATABASE OPERATIONS
+// SUPABASE OPERATIONS
 // ==========================================================================
-function saveScanToDB(diseaseKey, confidenceValue) {
-    if (!window.db) return;
+
+async function saveScanToSupabase(diseaseKey, confidenceValue) {
     try {
         const record = {
-            diseaseKey,
-            confidence: confidenceValue,
+            disease_key: diseaseKey.toLowerCase().trim(),
+            disease_name: diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+            crop_type: diseaseKey.includes('tomato') ? 'Tomato' : 'Potato',
+            confidence: Number(confidenceValue) || 0,
             timestamp: new Date().toLocaleString(),
             coordinates: currentGPS,
-            syncStatus: 'pending',
-            isOutbreak: false,
+            is_outbreak: false,
             source: 'local'
         };
-        const transaction = window.db.transaction(["scans"], "readwrite");
-        const store = transaction.objectStore("scans");
-        store.add(record);
-        transaction.oncomplete = () => loadHistoryFromDB();
-    } catch (error) { console.error('Save error:', error); }
+        const { data, error } = await supabase.from('scans').insert([record]).select();
+        if (error) throw error;
+        showToast('Scan saved', 'success');
+        return data[0];
+    } catch (error) {
+        console.error('Save scan error:', error);
+        showToast('Failed to save scan: ' + (error.message || 'Supabase error'), 'error');
+    }
 }
 
-function loadHistoryFromDB() {
-    if (!window.db) return;
-    allCachedScans = [];
-    window.allCachedScans = allCachedScans;
+async function saveOutbreakToSupabase(diseaseKey, confidence, notes = "") {
+    const coords = await new Promise(resolve => {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                pos => resolve(pos.coords),
+                () => resolve(null),
+                { timeout: 10000, enableHighAccuracy: false }
+            );
+        } else {
+            resolve(null);
+        }
+    });
+
+    const outbreakData = {
+        disease_key: diseaseKey.toLowerCase().trim(),
+        disease_name: diseaseKey.replace(/_/g, ' ').toUpperCase(),
+        crop_type: diseaseKey.includes("tomato") ? "Tomato" : "Potato",
+        confidence: parseFloat(confidence.replace('%', '') || 0),
+        latitude: coords ? coords.latitude : null,
+        longitude: coords ? coords.longitude : null,
+        notes: notes || "",
+        timestamp: new Date().toISOString(),
+        source: 'community',
+        is_outbreak: true
+    };
+
     try {
-        const transaction = window.db.transaction(["scans"], "readonly");
-        const store = transaction.objectStore("scans");
-        const request = store.openCursor(null, "prev");
-        request.onsuccess = (event) => {
-            const cursor = event.target.result;
-            if (cursor) { allCachedScans.push(cursor.value); cursor.continue(); }
-            else {
-                window.allCachedScans = allCachedScans;
-                renderHistoryCards(allCachedScans);
-                renderHistoryTable(allCachedScans);
-                calculateAnalytics(allCachedScans);
-                updateQuickStats();
-                if (typeof updateMapMarkers === 'function') setTimeout(updateMapMarkers, 500);
-            }
-        };
-    } catch (error) { console.error('Load error:', error); }
+        const { data, error } = await supabase.from('outbreaks').insert([outbreakData]).select();
+        if (error) throw error;
+        showToast('Outbreak reported to community ✅', 'success');
+        return data[0];
+    } catch (error) {
+        console.error('Failed to save outbreak:', error);
+        showToast('Failed to report outbreak: ' + (error.message || 'Supabase error'), 'error');
+    }
+}
+
+async function loadHistoryFromSupabase() {
+    try {
+        const { data, error } = await supabase.from('scans').select('*').order('timestamp', { ascending: false });
+        if (error) throw error;
+        allCachedScans = data || [];
+        window.allCachedScans = allCachedScans;
+        renderHistoryCards(allCachedScans);
+        renderHistoryTable(allCachedScans);
+        calculateAnalytics(allCachedScans);
+        updateQuickStats();
+        if (typeof updateMapMarkers === 'function') setTimeout(updateMapMarkers, 500);
+    } catch (error) {
+        console.error('Load history error:', error);
+        allCachedScans = [];
+        window.allCachedScans = allCachedScans;
+        renderHistoryCards([]);
+        renderHistoryTable([]);
+        calculateAnalytics([]);
+        updateQuickStats();
+    }
+}
+
+async function clearHistoryOnSupabase() {
+    try {
+        const { error } = await supabase.from('scans').delete().neq('id', 0);
+        if (error) throw error;
+        showToast('History cleared', 'success');
+        loadHistoryFromSupabase();
+        updateQuickStats();
+    } catch (error) {
+        console.error('Clear history error:', error);
+        showToast('Failed to clear history', 'error');
+    }
 }
 
 function renderHistoryTable(scanArray) {
@@ -579,7 +622,7 @@ function displayResult(diseaseKey, confidenceValue, extraContext = null) {
 
     outbreakBtn.onclick = () => {
         if (confirm(currentLanguage === 'sw' ? 'Je, unataka kuripoti ugonjwa huu kwa jamii?' : 'Report this as a community outbreak?')) {
-            saveOutbreak(diseaseKey, confidenceValue, prompt(currentLanguage === 'sw' ? 'Maoni yako (hiari):' : 'Add notes (optional):') || '');
+            saveOutbreakToSupabase(diseaseKey, confidenceValue, prompt(currentLanguage === 'sw' ? 'Maoni yako (hiari):' : 'Add notes (optional):') || '');
         }
     };
 }
@@ -636,19 +679,7 @@ function updateQuickStats() {
 }
 
 function setupEventListeners() {
-    window.addEventListener('online', () => {
-        showToast('Back online — syncing saved reports', 'success');
-        updateConnectionBadge(true);
-        syncPendingOutbreaks();
-        syncPendingScans();
-    });
-
-    window.addEventListener('offline', () => {
-        showToast('Offline — scans and reports will save locally', 'warning');
-        updateConnectionBadge(false);
-    });
-
-    // Search history
+    // Webcam button
     if (searchHistoryInput) {
         searchHistoryInput.addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
@@ -663,11 +694,8 @@ function setupEventListeners() {
     // Clear history
     if (btnClearHistory) {
         btnClearHistory.addEventListener('click', () => {
-            if (!window.db) return;
             showConfirmToast('Clear all scan history?', () => {
-                const transaction = window.db.transaction(["scans"], "readwrite");
-                transaction.objectStore("scans").clear();
-                transaction.oncomplete = () => { loadHistoryFromDB(); updateQuickStats(); showToast('History cleared', 'success'); };
+                clearHistoryOnSupabase();
             });
         });
     }
@@ -677,7 +705,8 @@ function setupEventListeners() {
         langSelect.addEventListener('change', (e) => {
             currentLanguage = e.target.value;
             updateLanguageUI();
-            loadHistoryFromDB();
+            loadHistoryFromSupabase();
+            if (typeof loadRemediesTab === 'function') loadRemediesTab();
             if (currentDetectedDisease) {
                 const confEl = document.getElementById('confidence-level');
                 if (confEl) displayResult(currentDetectedDisease, confEl.innerText);
@@ -718,7 +747,7 @@ function setupEventListeners() {
             currentDetectedDisease = demoDisease;
             updateStatus('complete');
             displayResult(demoDisease, demoConfidence);
-            saveScanToDB(demoDisease, demoConfidence);
+            saveScanToSupabase(demoDisease, demoConfidence);
             showToast('Demo diagnosis loaded. This is a sample result for judging.', 'success');
             if (placeholderText) placeholderText.classList.add('hidden');
             if (webcamElement) webcamElement.classList.add('hidden');
@@ -747,14 +776,17 @@ if (fileInput) {
         const reader = new FileReader();
         reader.onload = function(e) {
             const imageUrl = e.target.result;
-            imagePreview.src = imageUrl;
-            imagePreview.classList.remove('hidden');
-            placeholderText.classList.add('hidden');
+            if (imagePreview) {
+                imagePreview.src = imageUrl;
+                imagePreview.classList.remove('hidden');
+            }
+            if (placeholderText) placeholderText.classList.add('hidden');
             if (webcamElement) webcamElement.classList.add('hidden');
             if (btnCapture) btnCapture.classList.add('hidden');
 
             const img = new Image();
             img.onload = function() {
+                console.log('Image loaded, running inference...');
                 runInference(img);
             };
             img.onerror = function() {
@@ -770,14 +802,23 @@ if (fileInput) {
     });
 
     const uploadLabel = document.querySelector('label[for="file-upload"]');
-    if (uploadLabel) {
-        uploadLabel.addEventListener('click', function(e) {
-            e.preventDefault();
+    if (uploadLabel && fileInput) {
+        uploadLabel.addEventListener('click', function() {
             fileInput.value = '';
-            fileInput.click();
         });
     }
 }
+
+// Global error handler
+window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+    showToast('Something went wrong. Please refresh.', 'error');
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
+    showToast('Something went wrong. Please refresh.', 'error');
+});
 
     // Export report
     if (btnExportReport) {
@@ -810,6 +851,34 @@ function updateLanguageUI() {
     if (lblAnalytics) lblAnalytics.innerText = isSw ? "Takwimu za Magonjwa" : "Disease Analytics";
     if (searchHistoryInput) searchHistoryInput.placeholder = isSw ? "Tafuta kwa ugonjwa au eneo..." : "Search by disease or location...";
     if (btnClearHistory) btnClearHistory.innerText = isSw ? "Futa Yote" : "Clear All";
+
+    const cameraTitle = document.getElementById('scan-title');
+    const cameraSubtitle = document.getElementById('scan-subtitle');
+    const btnCapture = document.getElementById('btn-capture');
+    const btnDemo = document.getElementById('btn-demo');
+    const btnExportReport = document.getElementById('btn-export-report');
+    const btnExportPdf = document.getElementById('btn-export-pdf');
+    const placeholderText = document.getElementById('placeholder-text');
+    const resultTitle = document.getElementById('result-title');
+    const resultSubtitle = document.getElementById('result-subtitle');
+    const treatmentOrganic = document.getElementById('treatment-organic-title');
+    const treatmentChemical = document.getElementById('treatment-chemical-title');
+    const treatmentPrevention = document.getElementById('treatment-prevention-title');
+    const remediesTitle = document.getElementById('remedies-title');
+
+    if (cameraTitle) cameraTitle.innerText = isSw ? "Skanneri ya Majani" : "Leaf Scanner";
+    if (cameraSubtitle) cameraSubtitle.innerText = isSw ? "Tumia kamera au pakia picha ya jani la mmea kwa uchambuzi." : "Use camera or upload a leaf image for diagnosis.";
+    if (btnCapture) btnCapture.innerText = isSw ? "Chukua & Tambua" : "Capture & Diagnose";
+    if (btnDemo) btnDemo.innerText = isSw ? "Jaribu Demo" : "Try Demo";
+    if (btnExportReport) btnExportReport.innerText = isSw ? "Nakili Ripoti" : "Copy Report";
+    if (btnExportPdf) btnExportPdf.innerText = isSw ? "Toa PDF" : "Export PDF";
+    if (placeholderText) placeholderText.innerText = isSw ? "Pakia picha ya jani au anza kamera ili kugonjwa wa mmea." : "Upload a leaf image or start the camera to diagnose crop disease.";
+    if (resultTitle) resultTitle.innerText = isSw ? "Matokeo ya Uchambuzi" : "Diagnosis Result";
+    if (resultSubtitle) resultSubtitle.innerText = isSw ? "Muhtasari wako wa uchambuzi unaotolewa na AI." : "Your AI-powered diagnosis summary.";
+    if (treatmentOrganic) treatmentOrganic.innerText = isSw ? "Tiba ya Asili" : "Organic Treatment";
+    if (treatmentChemical) treatmentChemical.innerText = isSw ? "Tiba ya Kemikali" : "Chemical Treatment";
+    if (treatmentPrevention) treatmentPrevention.innerText = isSw ? "Uzuio" : "Prevention";
+    if (remediesTitle) remediesTitle.innerText = isSw ? "Dawa" : "Remedies";
 }
 
 // ==========================================================================
@@ -868,7 +937,7 @@ async function runInference(inputElement) {
         
         updateStatus('complete');
         displayResult(currentDetectedDisease, confidencePercentage);
-        saveScanToDB(currentDetectedDisease, confidencePercentage);
+        saveScanToSupabase(currentDetectedDisease, confidencePercentage);
         showToast('Diagnosis complete!', 'success');
     } catch (error) {
         console.error('Inference error:', error);
@@ -893,236 +962,29 @@ if (themeToggleBtn) {
 }
 
 // ==========================================================================
-// SUPABASE SYNC FOR COMMUNITY OUTBREAKS
-// ==========================================================================
-
-function normalizeOutbreakForSupabase(outbreak) {
-    const diseaseKey = outbreak.diseaseKey || outbreak.disease_key || '';
-    return {
-        disease_key: diseaseKey.toLowerCase().trim(),
-        disease_name: outbreak.diseaseName || outbreak.disease_name || diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
-        crop_type: outbreak.cropType || (diseaseKey.includes('tomato') ? 'Tomato' : 'Potato'),
-        confidence: Number(outbreak.confidence) || 0,
-        latitude: outbreak.latitude ?? null,
-        longitude: outbreak.longitude ?? null,
-        notes: outbreak.notes || '',
-        timestamp: outbreak.timestamp || new Date().toISOString(),
-        source: outbreak.source || 'community',
-        sync_status: 'synced',
-        is_outbreak: true
-    };
-}
-
-// Save outbreak to local DB (pending sync)
-async function saveOutbreak(diseaseKey, confidence, notes = "") {
-    if (!window.db) {
-        showToast('Database not ready yet', 'error');
-        return;
-    }
-
-    const coords = await new Promise(resolve => {
-        if (navigator.geolocation) {
-            navigator.geolocation.getCurrentPosition(
-                pos => resolve(pos.coords),
-                () => resolve(null),
-                { timeout: 10000, enableHighAccuracy: false }
-            );
-        } else {
-            resolve(null);
-        }
-    });
-
-    const outbreakData = {
-        diseaseKey: diseaseKey.toLowerCase().trim(),
-        diseaseName: diseaseKey.replace(/_/g, ' ').toUpperCase(),
-        cropType: diseaseKey.includes("tomato") ? "Tomato" : "Potato",
-        confidence: parseFloat(confidence.replace('%', '') || 0),
-        latitude: coords ? coords.latitude : null,
-        longitude: coords ? coords.longitude : null,
-        notes: notes || "",
-        timestamp: new Date().toISOString(),
-        syncStatus: "pending",
-        isOutbreak: true
-    };
-
-    try {
-        const tx = window.db.transaction(["scans"], "readwrite");
-        const store = tx.objectStore("scans");
-
-        await new Promise((resolve, reject) => {
-            const request = store.add(outbreakData);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-
-        loadHistoryFromDB();
-
-        if (navigator.onLine) {
-            showToast('Outbreak recorded ✅ Syncing to remote backup...', 'success');
-            syncPendingOutbreaks()
-                .then(successCount => {
-                    if (successCount > 0) {
-                        showToast('Successfully synced to Supabase', 'success');
-                    }
-                })
-                .catch(err => {
-                    console.error('Sync failed:', err);
-                    showToast('Saved locally • Will sync later', 'warning');
-                });
-        } else {
-            showToast('Outbreak saved locally (offline)', 'success');
-        }
-
-    } catch (error) {
-        console.error('Failed to save outbreak:', error);
-        showToast('Failed to save outbreak', 'error');
-    }
-}
-
-// Sync pending outbreaks to Supabase
-async function syncPendingOutbreaks() {
-    if (!navigator.onLine || !window.db) return 0;
-
-    const tx = window.db.transaction(["scans"], "readwrite");
-    const store = tx.objectStore("scans");
-
-    const pending = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-    });
-
-    const outbreaksToSync = pending.filter(o => o.isOutbreak && (o.syncStatus === "pending" || o.syncStatus !== "synced"));
-    if (outbreaksToSync.length === 0) return 0;
-
-    let successCount = 0;
-
-    for (const outbreak of outbreaksToSync) {
-        try {
-            const payload = normalizeOutbreakForSupabase(outbreak);
-            const syncedRecord = await syncToSupabaseLocal('outbreaks', payload);
-
-            outbreak.syncStatus = "synced";
-            outbreak.remoteId = syncedRecord.id;
-            await new Promise((resolve, reject) => {
-                const updateRequest = store.put(outbreak);
-                updateRequest.onsuccess = () => resolve();
-                updateRequest.onerror = () => reject(updateRequest.error);
-            });
-            successCount++;
-        } catch (err) {
-            console.error('Failed to sync one outbreak:', err);
-            showToast('Sync failed for one report. Will retry later.', 'warning', 6000);
-        }
-    }
-
-    if (successCount > 0) {
-        loadHistoryFromDB();
-    }
-
-    return successCount;
-}
-
-// Get community outbreaks from Supabase
-async function getCommunityOutbreaks() {
-    try {
-        const remoteReports = await loadFromSupabaseLocal('outbreaks');
-        return (remoteReports || []).map(item => ({
-            ...item,
-            diseaseKey: item.disease_key || item.diseaseKey || '',
-            diseaseName: item.disease_name || item.diseaseName || '',
-            latitude: item.latitude ?? null,
-            longitude: item.longitude ?? null,
-            notes: item.notes || '',
-            timestamp: item.timestamp || item.created_at || new Date().toISOString(),
-            source: item.source || 'community',
-            syncStatus: item.sync_status || item.syncStatus || 'synced',
-            isOutbreak: item.is_outbreak ?? item.isOutbreak ?? true
-        }));
-    } catch (err) {
-        console.error('Failed to load community outbreaks:', err);
-        return [];
-    }
-}
-
-// Sync pending scans to Supabase
-async function syncPendingScans() {
-    if (!navigator.onLine || !window.db) return 0;
-
-    const tx = window.db.transaction(["scans"], "readwrite");
-    const store = tx.objectStore("scans");
-
-    const pending = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result || []);
-        request.onerror = () => reject(request.error);
-    });
-
-    const scansToSync = pending.filter(s => !s.isOutbreak && s.syncStatus !== 'synced');
-    if (scansToSync.length === 0) return 0;
-
-    let successCount = 0;
-
-    for (const scan of scansToSync) {
-        try {
-            const payload = normalizeScanForSupabase(scan);
-            const syncedRecord = await syncToSupabaseLocal('scans', payload);
-
-            scan.syncStatus = 'synced';
-            scan.remoteId = syncedRecord.id;
-            await new Promise((resolve, reject) => {
-                const updateRequest = store.put(scan);
-                updateRequest.onsuccess = () => resolve();
-                updateRequest.onerror = () => reject(updateRequest.error);
-            });
-            successCount++;
-        } catch (err) {
-            console.error('Failed to sync one scan:', err);
-            showToast('Sync failed for one scan. Will retry later.', 'warning', 6000);
-        }
-    }
-
-    if (successCount > 0) {
-        loadHistoryFromDB();
-    }
-
-    return successCount;
-}
-
-function normalizeScanForSupabase(scan) {
-    const diseaseKey = scan.diseaseKey || scan.disease_key || '';
-    return {
-        disease_key: diseaseKey.toLowerCase().trim(),
-        disease_name: scan.diseaseName || scan.disease_name || diseaseKey.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
-        crop_type: scan.cropType || (diseaseKey.includes('tomato') ? 'Tomato' : 'Potato'),
-        confidence: Number(scan.confidence) || 0,
-        timestamp: scan.timestamp || new Date().toISOString(),
-        source: scan.source || 'local',
-        coordinates: scan.coordinates || '',
-        sync_status: 'pending',
-        is_outbreak: false,
-        notes: scan.notes || '',
-        latitude: scan.latitude ?? null,
-        longitude: scan.longitude ?? null
-    };
-}
-
-// Auto sync when back online
-window.addEventListener('online', () => {
-    console.log('🌐 Back online - syncing data...');
-    syncPendingOutbreaks();
-    syncPendingScans();
-});
-
-// Make functions global so map.js can access them
-window.saveOutbreak = saveOutbreak;
-window.getCommunityOutbreaks = getCommunityOutbreaks;
-window.syncPendingOutbreaks = syncPendingOutbreaks;
-window.syncPendingScans = syncPendingScans;
-
-// ==========================================================================
 // REAL-TIME NEARBY OUTBREAK ALERTS
 // ==========================================================================
+// Note: Realtime is disabled. Uncomment the block below and enable Supabase
+// replication on the outbreaks table if you want live alerts.
+
+/*
+function startRealtimeAlerts() {
+    if (!window.supabase) return;
+    window.supabase
+        .channel('outbreaks-changes')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'outbreaks' }, payload => {
+            console.log('New outbreak reported:', payload.new);
+            showToast('New outbreak reported nearby!', 'warning');
+        })
+        .subscribe();
+}
+
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        startRealtimeAlerts();
+    }, 3000);
+});
+*/
 
 let userLocation = null;
 
@@ -1154,8 +1016,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
 }
+// Note: Realtime is disabled. Uncomment the block below and enable Supabase
+// replication on the outbreaks table if you want live alerts.
 
-// Subscribe to real-time outbreaks
+/*
 function startRealtimeAlerts() {
     if (!window.supabase) return;
     window.supabase
@@ -1167,20 +1031,22 @@ function startRealtimeAlerts() {
         .subscribe();
 }
 
-// Start alerts when app loads
 window.addEventListener('load', () => {
     setTimeout(() => {
         startRealtimeAlerts();
     }, 3000);
 });
+*/
 
 // Load Remedies Tab
 function loadRemediesTab() {
     const container = document.getElementById('remedies-container');
+    if (!container) return;
     let html = '';
 
-    Object.keys(remediesDatabase).forEach(disease => {
-        const data = remediesDatabase[disease];
+    const db = window.remediesDatabase || {};
+    Object.keys(db).forEach(disease => {
+        const data = db[disease];
         
         html += `
             <div class="remedy-card">
@@ -1225,4 +1091,8 @@ function switchTab(tabIndex) {
 // ==========================================================================
 // START APP
 // ==========================================================================
-document.addEventListener('DOMContentLoaded', initializeApp);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}

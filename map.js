@@ -146,43 +146,14 @@ function renderSummary() {
 async function loadOutbreakData() {
     outbreakReports = [];
 
-    if (!window.db) {
-        try { await initializeDatabase(); } catch (error) { console.warn('Database init failed:', error); }
-    }
-
-    if (window.db) {
-        try {
-            const tx = window.db.transaction(['scans'], 'readonly');
-            const store = tx.objectStore('scans');
-            const stored = await new Promise((resolve, reject) => {
-                const request = store.getAll();
-                request.onsuccess = () => resolve(request.result || []);
-                request.onerror = () => reject(request.error);
-            });
-            outbreakReports = stored.filter(entry => entry.isOutbreak || entry.syncStatus === 'pending' || entry.source === 'community');
-        } catch (error) {
-            console.warn('Could not read IndexedDB outbreaks:', error);
-        }
-    }
-
-    const legacy = localStorage.getItem('mimeahub-community-outbreaks');
-    if (legacy) {
-        try {
-            const parsed = JSON.parse(legacy);
-            outbreakReports = [...outbreakReports, ...parsed.map(normalizeOutbreakReport)];
-        } catch (error) {
-            console.warn('Legacy outbreaks unreadable:', error);
-        }
-    }
-
-    if (navigator.onLine && typeof window.loadFromSupabase === 'function') {
+    if (typeof window.loadFromSupabase === 'function') {
         try {
             const remoteReports = await window.loadFromSupabase('outbreaks');
             if (Array.isArray(remoteReports) && remoteReports.length > 0) {
                 outbreakReports = [...outbreakReports, ...remoteReports.map(normalizeOutbreakReport)];
             }
         } catch (error) {
-            console.warn('Could not load remote outbreaks:', error);
+            console.warn('Could not load outbreaks from Supabase:', error);
         }
     }
 
@@ -384,35 +355,14 @@ async function submitCommunityReport() {
     };
 
     try {
-        if (!window.db) {
-            await initializeDatabase();
-        }
-
-        const tx = window.db.transaction(['scans'], 'readwrite');
-        const store = tx.objectStore('scans');
-        await new Promise((resolve, reject) => {
-            const request = store.add(reportEntry);
-            request.onsuccess = () => resolve();
-            request.onerror = () => reject(request.error);
-        });
-
-        const storedReports = JSON.parse(localStorage.getItem('mimeahub-community-outbreaks') || '[]');
-        storedReports.push(reportEntry);
-        localStorage.setItem('mimeahub-community-outbreaks', JSON.stringify(storedReports));
-
         hideReportModal();
-        if (typeof window.syncToSupabase === 'function' && navigator.onLine) {
+        if (typeof window.syncToSupabase === 'function') {
             try {
                 const syncedRecord = await window.syncToSupabase('outbreaks', reportEntry);
-                if (syncedRecord?.id && window.db) {
-                    const tx = window.db.transaction(['scans'], 'readwrite');
-                    const store = tx.objectStore('scans');
-                    reportEntry.syncStatus = 'synced';
-                    reportEntry.remoteId = syncedRecord.id;
-                    store.put(reportEntry);
-                }
+                showToast('Report saved to community', 'success');
             } catch (error) {
-                console.warn('Remote report sync skipped:', error);
+                console.error('Failed to save report:', error);
+                showToast('Failed to save report. Please try again.', 'error');
             }
         }
         await loadOutbreakData();

@@ -40,6 +40,19 @@
     </div>
 
     <div class="admin-shell">
+        <div id="admin-pin-overlay" style="position:fixed; inset:0; background:rgba(7,17,31,0.95); z-index:9999; display:flex; align-items:center; justify-content:center;">
+            <div class="card" style="padding:32px; max-width:400px; width:90%; text-align:center;">
+                <h2 style="margin:0 0 8px;">Admin Access</h2>
+                <p style="margin:0 0 20px; color:var(--text-muted);">Enter the admin PIN to continue.</p>
+                <form id="admin-pin-form" style="display:flex; flex-direction:column; gap:12px;">
+                    <input type="password" id="admin-pin-input" placeholder="Enter PIN" style="padding:14px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.04); color:var(--text); font-size:1.2rem; text-align:center; letter-spacing:8px;" maxlength="6">
+                    <button type="submit" class="btn btn-primary" style="width:100%;">Unlock</button>
+                </form>
+                <p id="admin-pin-error" style="color:#f85149; margin:12px 0 0; display:none;">Incorrect PIN</p>
+            </div>
+        </div>
+
+        <div id="admin-content" style="display:none;">
         <div class="admin-tabs">
             <button class="admin-tab active" data-tab="prices">🥬 Prices</button>
             <button class="admin-tab" data-tab="agrovets">🌱 Agrovets</button>
@@ -89,6 +102,7 @@
             </div>
             <div id="agrovets-admin-list"></div>
         </div>
+    </div>
     </div>
 
     <div class="bottom-nav">

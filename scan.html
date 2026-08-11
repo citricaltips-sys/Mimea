@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#07111f">
-    <link rel="manifest" href="manifest.webmanifest">
     <title>MimeaHub • Scan</title>
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -27,8 +26,8 @@
             <div class="card" style="padding:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px;">
                     <div>
-                        <h1 style="margin:0; font-size:2rem;">Leaf Scanner</h1>
-                        <p style="margin:6px 0 0; color:var(--text-secondary);">Use camera or upload a leaf image for diagnosis.</p>
+                        <h1 id="scan-title" style="margin:0; font-size:2rem;">Leaf Scanner</h1>
+                        <p id="scan-subtitle" style="margin:6px 0 0; color:var(--text-secondary);">Use camera or upload a leaf image for diagnosis.</p>
                     </div>
                     <select id="language-select" class="btn btn-outline" style="padding:10px 14px; background:rgba(255,255,255,0.04); color:var(--text-primary); border:1px solid rgba(255,255,255,0.12);">
                         <option value="en">English</option>
@@ -60,8 +59,8 @@
             <div id="result-card" class="card hidden" style="padding:24px; margin-top:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
                 <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;">
                     <div>
-                        <h2 style="margin-top:0;">Diagnosis Result</h2>
-                        <p style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">Your AI-powered diagnosis summary.</p>
+                        <h2 id="result-title" style="margin-top:0;">Diagnosis Result</h2>
+                        <p id="result-subtitle" style="margin:6px 0 0; color:var(--text-secondary); font-size:13px;">Your AI-powered diagnosis summary.</p>
                     </div>
                     <div style="padding:8px 12px; border-radius:999px; background:rgba(74,222,128,0.12); color:#86efac; font-size:0.8rem; font-weight:700;">Verified</div>
                 </div>
@@ -81,9 +80,9 @@
 
                 <div id="prediction-result" style="display:grid; gap:14px;">
                     <div id="treatment-section" style="display:grid; gap:14px;">
-                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Organic Treatment</strong><p id="treatment-organic" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
-                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Chemical Treatment</strong><p id="treatment-chemical" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
-                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong>Prevention</strong><p id="treatment-prevention" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong id="treatment-organic-title">Organic Treatment</strong><p id="treatment-organic" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong id="treatment-chemical-title">Chemical Treatment</strong><p id="treatment-chemical" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
+                        <div style="padding:14px; border-radius:16px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.06);"><strong id="treatment-prevention-title">Prevention</strong><p id="treatment-prevention" style="margin:8px 0 0; color:var(--text-secondary);">No information available.</p></div>
                     </div>
                 </div>
             </div>
@@ -120,6 +119,11 @@
                 </div>
                 <div id="analytics-chart-container" style="display:grid; gap:12px; max-height:260px; overflow:auto;"></div>
             </div>
+
+            <div class="card" style="padding:24px; background:linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,28,47,0.95));">
+                <h2 id="remedies-title" style="margin:0 0 12px; font-size:1.4rem;">Remedies</h2>
+                <div id="remedies-container" style="display:grid; gap:12px; max-height:320px; overflow:auto;"></div>
+            </div>
         </aside>
     </div>
 
@@ -135,8 +139,9 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js"></script>
-<script src="db.js?v=20260801"></script>
 <script src="auth.js?v=20260801"></script>
+<script src="remedies.js?v=20260801"></script>
+<script type="module" src="supabase-client.js?v=20260801"></script>
 <script type="module" src="app.js?v=20260801"></script>
 </body>
 </html>

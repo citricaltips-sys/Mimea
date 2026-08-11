@@ -464,6 +464,12 @@ select:focus-visible {
     color: var(--accent);
 }
 
+.status-online {
+    color: #4ade80;
+    background: rgba(74,222,128,0.14);
+    border-color: rgba(74,222,128,0.26);
+}
+
 .status-scanning {
     color: #fbbf24;
 }

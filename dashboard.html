@@ -83,7 +83,6 @@
     </div>
 </div>
 
-<script src="db.js"></script>
 <script src="auth.js"></script>
 <script>
     function toggleTheme() {
@@ -172,20 +171,9 @@
 
     async function loadDashboardData() {
         try {
-            await initializeDatabase();
-            if (!window.db) return;
-
-            const transaction = window.db.transaction(['scans'], 'readonly');
-            const store = transaction.objectStore('scans');
-            const request = store.getAll();
-
-            request.onsuccess = () => {
-                renderDashboard(request.result || []);
-            };
-
-            request.onerror = () => {
-                renderDashboard([]);
-            };
+            const { data, error } = await window.supabase.from('scans').select('*').order('timestamp', { ascending: false });
+            if (error) throw error;
+            renderDashboard(data || []);
         } catch (error) {
             console.error('Dashboard data load failed:', error);
             renderDashboard([]);

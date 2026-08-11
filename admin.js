@@ -1,13 +1,39 @@
+const ADMIN_PIN = '1234';
+
 function initAdminPage() {
     if (!window.auth || !window.auth.isAdmin()) {
         window.location.href = 'dashboard.html';
         return;
     }
-    setupTabs();
-    setupPriceForm();
-    setupAgrovetForm();
-    loadPrices();
-    loadAgrovets();
+
+    const pinOverlay = document.getElementById('admin-pin-overlay');
+    const adminContent = document.getElementById('admin-content');
+    const pinForm = document.getElementById('admin-pin-form');
+    const pinInput = document.getElementById('admin-pin-input');
+    const pinError = document.getElementById('admin-pin-error');
+
+    if (!pinOverlay || !adminContent) return;
+
+    adminContent.style.display = 'none';
+    pinOverlay.style.display = 'flex';
+
+    pinForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const entered = pinInput.value.trim();
+        if (entered === ADMIN_PIN) {
+            pinOverlay.style.display = 'none';
+            adminContent.style.display = 'block';
+            setupTabs();
+            setupPriceForm();
+            setupAgrovetForm();
+            loadPrices();
+            loadAgrovets();
+        } else {
+            pinError.style.display = 'block';
+            pinInput.value = '';
+            pinInput.focus();
+        }
+    });
 }
 
 function setupTabs() {

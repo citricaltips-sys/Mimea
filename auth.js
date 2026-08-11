@@ -90,24 +90,6 @@ function showLandingToast(message, type) {
 
     window.auth = new AuthSystem();
 
-    window.clearAppCachesAndServiceWorker = function() {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                return Promise.all(registrations.map(function(registration) {
-                    return registration.unregister();
-                }));
-            }).catch(function() {});
-        }
-
-        if ('caches' in window) {
-            caches.keys().then(function(cacheNames) {
-                return Promise.all(cacheNames.map(function(cacheName) {
-                    return caches.delete(cacheName);
-                }));
-            }).catch(function() {});
-        }
-    };
-
     window.handlePageRouting = function() {
         var currentPath = window.location.pathname;
         var currentPage = currentPath.split('/').pop() || 'index.html';
@@ -119,6 +101,7 @@ function showLandingToast(message, type) {
         }
 
         if (currentPage === 'dashboard.html' && !window.auth.isLoggedIn()) {
+            window.location.href = 'index.html';
             return;
         }
     };
@@ -207,7 +190,6 @@ function showLandingToast(message, type) {
     };
 
     document.addEventListener('DOMContentLoaded', function() {
-        window.clearAppCachesAndServiceWorker();
         window.handlePageRouting();
         
         document.addEventListener('keydown', function(e) {
