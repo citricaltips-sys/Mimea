@@ -8,11 +8,15 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.0/dist/MarkerCluster.Default.css" />
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#22c55e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.0/dist/leaflet.markercluster.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 </head>
 <body>
+<div id="sync-status-bar" class="sync-status-bar" role="status" aria-live="polite"></div>
 <div class="dashboard-shell">
     <div class="top-bar">
         <div class="brand">
@@ -22,6 +26,10 @@
     </div>
 
     <div class="content">
+        <div id="offline-banner" class="offline-banner hidden">
+            <span>📡 You're offline</span>
+            <span>Showing cached community reports</span>
+        </div>
         <div class="map-hero">
             <div>
                 <h1>Community outbreak map</h1>
@@ -108,6 +116,28 @@
 </div>
 
 <script type="module" src="supabase-client.js?v=20260801"></script>
-<script src="map.js"></script>
+    <script src="map.js"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+                    .then(reg => {
+                        console.log('SW registered:', reg.scope);
+                        if (reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.error('SW registration failed:', err));
+            });
+        }
+    </script>
 </body>
 </html>

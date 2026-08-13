@@ -55,3 +55,69 @@ const DEFAULT_AGROVETS = [
 ];
 
 const PRICE_TREND_EMOJI = { up: '📈', down: '📉', stable: '➡️' };
+
+let allPrices = [...DEFAULT_PRICES];
+let allAgrovets = [...DEFAULT_AGROVETS];
+
+async function initMarketPage() {
+    if (window.db) {
+        try {
+            const cachedPrices = await window.db.getAll('prices');
+            if (cachedPrices.length > 0) {
+                allPrices = cachedPrices;
+            }
+        } catch (error) {
+            console.warn('Could not load cached prices:', error);
+        }
+    }
+    
+    if (navigator.onLine && typeof window.loadFromSupabase === 'function') {
+        try {
+            const remotePrices = await window.loadFromSupabase('market_prices');
+            if (Array.isArray(remotePrices) && remotePrices.length > 0) {
+                allPrices = remotePrices;
+                if (window.db) {
+                    for (const price of remotePrices) {
+                        await window.db.put('prices', { ...price, sync_status: 'synced' });
+                    }
+                }
+            }
+        } catch (error) {
+            console.warn('Could not sync prices from Supabase:', error);
+        }
+    }
+    
+    renderMarketPrices();
+    renderAgrovets();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if (document.getElementById('market-prices-list') || document.getElementById('agrovets-list')) {
+        initMarketPage();
+    }
+    
+    const refreshBtn = document.getElementById('btn-refresh-market');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            if (!navigator.onLine) {
+                showToast('You are offline. Showing cached data.', 'warning');
+                await initMarketOffline();
+                return;
+            }
+            
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = 'Refreshing...';
+            
+            try {
+                await initMarketPage();
+                showToast('Market data refreshed', 'success');
+            } catch (error) {
+                showToast('Failed to refresh. Showing cached data.', 'error');
+                await initMarketOffline();
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = 'Refresh';
+            }
+        });
+    }
+});

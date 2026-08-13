@@ -7,6 +7,11 @@
     <meta name="theme-color" content="#07111f">
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" type="image/png" href="/Images/S-Logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#07111f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MimeaHub">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -132,6 +137,7 @@
     </style>
 </head>
 <body>
+<div id="sync-status-bar" class="sync-status-bar" role="status" aria-live="polite"></div>
     
     <!-- Navigation -->
     <nav class="landing-nav">
@@ -274,5 +280,27 @@
 
     <script src="auth.js?v=20260801"></script>
     <script type="module" src="supabase-client.js?v=20260801"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+                    .then(reg => {
+                        console.log('SW registered:', reg.scope);
+                        if (reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.error('SW registration failed:', err));
+            });
+        }
+    </script>
 </body>
 </html>

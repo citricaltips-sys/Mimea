@@ -1,4 +1,5 @@
-import { supabase, syncToSupabase, loadFromSupabase, testSupabaseConnection } from './supabase-client.js';
+import { supabase, syncToSupabase, loadFromSupabase, testSupabaseConnection, saveRecordOffline, processSyncQueue, loadOfflineData } from './supabase-client.js';
+import { db } from './db.js';
 
 async function syncToSupabaseLocal(table, record) {
     try {
@@ -285,6 +286,7 @@ function initDOMElements() {
 async function initializeApp() {
     console.log('Starting app...');
     try {
+        await db.init();
         initDOMElements();
         setupEventListeners();
         updateConnectionBadge(navigator.onLine);
@@ -323,6 +325,31 @@ async function initializeApp() {
             setTimeout(initDiseaseMap, 1000);
         }
         
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        
+        await updatePendingSyncCount();
+        
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(registration => {
+                console.log('Service Worker ready');
+                
+                navigator.serviceWorker.addEventListener('message', async (event) => {
+                    if (event.data && event.data.type === 'SYNC_SCANS') {
+                        await processSyncQueue();
+                        await loadHistoryFromSupabase();
+                    } else if (event.data && event.data.type === 'SYNC_OUTBREAKS') {
+                        await processSyncQueue();
+                        if (typeof updateMapMarkers === 'function') {
+                            await updateMapMarkers();
+                        }
+                    } else if (event.data && event.data.type === 'SYNC_PRICES') {
+                        await processSyncQueue();
+                    }
+                });
+            });
+        }
+        
         setInterval(() => updateConnectionBadge(navigator.onLine), 5000);
         console.log('App ready!');
     } catch (error) {
@@ -350,6 +377,109 @@ function updateConnectionBadge(isOnline) {
     if (!connectionBadge) return;
     connectionBadge.innerText = isOnline ? 'Online' : 'Offline';
     connectionBadge.className = isOnline ? 'status-badge status-online' : 'status-badge status-error';
+    
+    updateSyncStatusBar(isOnline ? 'synced' : 'offline', isOnline ? 'Online' : 'Offline - Data saved locally');
+}
+
+function updateSyncStatusBar(status, message) {
+    const bar = document.getElementById('sync-status-bar');
+    if (!bar) return;
+    
+    bar.className = `sync-status-bar visible ${status}`;
+    bar.textContent = message;
+    
+    if (status !== 'offline') {
+        setTimeout(() => {
+            bar.classList.remove('visible');
+        }, 3000);
+    }
+}
+
+async function updatePendingSyncCount() {
+    if (!window.db) return;
+    
+    try {
+        const pendingScans = await window.db.getPending('scans');
+        const pendingOutbreaks = await window.db.getPending('outbreaks');
+        const totalPending = pendingScans.length + pendingOutbreaks.length;
+        
+        if (totalPending > 0 && !navigator.onLine) {
+            updateSyncStatusBar('pending', `Offline - ${totalPending} items pending sync`);
+        } else if (totalPending > 0 && navigator.onLine) {
+            updateSyncStatusBar('syncing', `Syncing ${totalPending} items...`);
+        }
+    } catch (error) {
+        console.error('Failed to check pending sync:', error);
+    }
+}
+
+async function handleOnline() {
+    updateConnectionBadge(true);
+    showToast('Back online! Syncing data...', 'success');
+    
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register('sync-scans');
+            await registration.sync.register('sync-outbreaks');
+            updateSyncStatusBar('syncing', 'Syncing data...');
+        } catch (error) {
+            console.warn('Background sync registration failed:', error);
+            const result = await processSyncQueue();
+            if (result && result.synced > 0) {
+                updateSyncStatusBar('synced', `Synced ${result.synced} items`);
+            }
+        }
+    } else {
+        const result = await processSyncQueue();
+        if (result && result.synced > 0) {
+            updateSyncStatusBar('synced', `Synced ${result.synced} items`);
+        }
+    }
+    
+    await loadHistoryFromSupabase();
+    await updatePendingSyncCount();
+    if (typeof updateMapMarkers === 'function') {
+        await updateMapMarkers();
+    }
+}
+
+function handleOffline() {
+    updateConnectionBadge(false);
+    showToast('You are offline. Scans will be saved locally.', 'warning');
+    updateSyncStatusBar('offline', 'Offline - Data saved locally');
+    updatePendingSyncCount();
+}
+    updateConnectionBadge(true);
+    showToast('Back online! Syncing data...', 'success');
+    
+    if ('serviceWorker' in navigator && 'SyncManager' in window) {
+        try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.sync.register('sync-scans');
+            await registration.sync.register('sync-outbreaks');
+            updateSyncStatusBar('syncing', 'Syncing data...');
+        } catch (error) {
+            console.warn('Background sync registration failed:', error);
+            await processSyncQueue();
+        }
+    } else {
+        const result = await processSyncQueue();
+        if (result && result.synced > 0) {
+            updateSyncStatusBar('synced', `Synced ${result.synced} items`);
+        }
+    }
+    
+    await loadHistoryFromSupabase();
+    if (typeof updateMapMarkers === 'function') {
+        await updateMapMarkers();
+    }
+}
+
+function handleOffline() {
+    updateConnectionBadge(false);
+    showToast('You are offline. Scans will be saved locally.', 'warning');
+    updateSyncStatusBar('offline', 'Offline - Data saved locally');
 }
 
 // ==========================================================================
@@ -385,13 +515,39 @@ async function saveScanToSupabase(diseaseKey, confidenceValue) {
             is_outbreak: false,
             source: 'local'
         };
-        const { data, error } = await supabase.from('scans').insert([record]).select();
-        if (error) throw error;
-        showToast('Scan saved', 'success');
-        return data[0];
+        
+        const localRecord = db.createScanRecord(
+            diseaseKey.toLowerCase().trim(),
+            confidenceValue,
+            currentGPS
+        );
+        localRecord.disease_name = record.disease_name;
+        localRecord.crop_type = record.crop_type;
+        
+        await db.put('scans', localRecord);
+        await db.addToQueue('scans', localRecord);
+        
+        if (navigator.onLine) {
+            try {
+                const synced = await syncToSupabase('scans', localRecord);
+                await db.markSynced('scans', localRecord.id);
+                showToast('Scan saved & synced', 'success');
+                await updatePendingSyncCount();
+                return synced;
+            } catch (error) {
+                console.warn('Sync failed, saved locally:', error);
+                showToast('Saved locally. Will sync when online.', 'info');
+                await updatePendingSyncCount();
+            }
+        } else {
+            showToast('Saved offline. Will sync when online.', 'info');
+            await updatePendingSyncCount();
+        }
+        
+        return localRecord;
     } catch (error) {
         console.error('Save scan error:', error);
-        showToast('Failed to save scan: ' + (error.message || 'Supabase error'), 'error');
+        showToast('Failed to save scan: ' + (error.message || 'Storage error'), 'error');
     }
 }
 
@@ -422,21 +578,81 @@ async function saveOutbreakToSupabase(diseaseKey, confidence, notes = "") {
     };
 
     try {
-        const { data, error } = await supabase.from('outbreaks').insert([outbreakData]).select();
-        if (error) throw error;
-        showToast('Outbreak reported to community ✅', 'success');
-        return data[0];
+        const localRecord = db.createOutbreakRecord(
+            diseaseKey,
+            confidence.replace('%', '') || 0,
+            notes,
+            coords ? `${coords.latitude}, ${coords.longitude}` : ''
+        );
+        localRecord.latitude = coords ? coords.latitude : null;
+        localRecord.longitude = coords ? coords.longitude : null;
+        localRecord.disease_name = outbreakData.disease_name;
+        localRecord.crop_type = outbreakData.crop_type;
+        
+        await db.put('outbreaks', localRecord);
+        await db.addToQueue('outbreaks', localRecord);
+        
+        if (navigator.onLine) {
+            try {
+                await syncToSupabase('outbreaks', localRecord);
+                await db.markSynced('outbreaks', localRecord.id);
+                showToast('Outbreak reported to community ✅', 'success');
+                await updatePendingSyncCount();
+            } catch (error) {
+                console.warn('Outbreak sync failed, saved locally:', error);
+                showToast('Saved locally. Will sync when online.', 'info');
+                await updatePendingSyncCount();
+            }
+        } else {
+            showToast('Saved offline. Will sync when online.', 'info');
+            await updatePendingSyncCount();
+        }
+        
+        return localRecord;
     } catch (error) {
         console.error('Failed to save outbreak:', error);
-        showToast('Failed to report outbreak: ' + (error.message || 'Supabase error'), 'error');
+        showToast('Failed to report outbreak: ' + (error.message || 'Storage error'), 'error');
     }
 }
 
 async function loadHistoryFromSupabase() {
     try {
-        const { data, error } = await supabase.from('scans').select('*').order('timestamp', { ascending: false });
-        if (error) throw error;
-        allCachedScans = data || [];
+        let scans = [];
+        
+        if (window.db) {
+            scans = await window.db.getAll('scans');
+        }
+        
+        if (navigator.onLine) {
+            try {
+                const remoteScans = await loadFromSupabase('scans');
+                if (Array.isArray(remoteScans)) {
+                    for (const scan of remoteScans) {
+                        const localExists = scans.find(s => s.id === scan.id);
+                        if (!localExists) {
+                                const normalized = {
+                                    ...scan,
+                                    id: scan.id || crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                                        const r = Math.random() * 16 | 0;
+                                        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                                        return v.toString(16);
+                                    }),
+                                    sync_status: 'synced'
+                                };
+                            scans.push(normalized);
+                            if (window.db) {
+                                await window.db.put('scans', normalized);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Could not sync with Supabase, using local data:', error);
+            }
+        }
+        
+        scans.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        allCachedScans = scans;
         window.allCachedScans = allCachedScans;
         renderHistoryCards(allCachedScans);
         renderHistoryTable(allCachedScans);
@@ -456,8 +672,15 @@ async function loadHistoryFromSupabase() {
 
 async function clearHistoryOnSupabase() {
     try {
-        const { error } = await supabase.from('scans').delete().neq('id', 0);
-        if (error) throw error;
+        if (navigator.onLine) {
+            const { error } = await supabase.from('scans').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+            if (error) throw error;
+        }
+        
+        if (window.db) {
+            await window.db.clear('scans');
+        }
+        
         showToast('History cleared', 'success');
         loadHistoryFromSupabase();
         updateQuickStats();
@@ -706,7 +929,21 @@ function setupEventListeners() {
             currentLanguage = e.target.value;
             updateLanguageUI();
             loadHistoryFromSupabase();
-            if (typeof loadRemediesTab === 'function') loadRemediesTab();
+        if (typeof loadRemediesTab === 'function') loadRemediesTab();
+        
+        if (window.db) {
+            try {
+                const remedies = await window.db.getAll('remedies');
+                if (remedies.length > 0) {
+                    window.remediesDatabase = window.remediesDatabase || {};
+                    remedies.forEach(r => {
+                        window.remediesDatabase[r.key] = r;
+                    });
+                }
+            } catch (error) {
+                console.warn('Could not load remedies from IndexedDB:', error);
+            }
+        }
             if (currentDetectedDisease) {
                 const confEl = document.getElementById('confidence-level');
                 if (confEl) displayResult(currentDetectedDisease, confEl.innerText);

@@ -1,7 +1,3 @@
-// ==========================================================================
-// AI FARM ASSISTANT CHAT - Local Knowledge Base
-// ==========================================================================
-
 const chatMessages = [];
 let isWaitingForResponse = false;
 

@@ -6,8 +6,14 @@
     <title>MimeaHub • Dashboard</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="icon" href="/Images/S-Logo.png">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#22c55e">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MimeaHub">
 </head>
 <body>
+<div id="sync-status-bar" class="sync-status-bar" role="status" aria-live="polite"></div>
 <div class="dashboard-shell">
 
     <!-- Top Bar -->
@@ -171,13 +177,58 @@
 
     async function loadDashboardData() {
         try {
-            const { data, error } = await window.supabase.from('scans').select('*').order('timestamp', { ascending: false });
-            if (error) throw error;
-            renderDashboard(data || []);
+            let scans = [];
+            
+            if (window.db) {
+                scans = await window.db.getAll('scans');
+            }
+            
+            if (navigator.onLine && window.loadFromSupabase) {
+                try {
+                    const remoteScans = await window.loadFromSupabase('scans');
+                    if (Array.isArray(remoteScans)) {
+                        for (const scan of remoteScans) {
+                            const localExists = scans.find(s => s.id === scan.id || s.diseaseKey === scan.diseaseKey);
+                            if (!localExists) {
+                                scans.push(scan);
+                                if (window.db) {
+                                    await window.db.put('scans', { ...scan, sync_status: 'synced' });
+                                }
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.warn('Remote data sync failed:', error);
+                }
+            }
+            
+            scans.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+            renderDashboard(scans);
         } catch (error) {
             console.error('Dashboard data load failed:', error);
             renderDashboard([]);
         }
+    }
+
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+                .then(reg => {
+                    console.log('SW registered:', reg.scope);
+                    if (reg.waiting) {
+                        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                    }
+                    reg.addEventListener('updatefound', () => {
+                        const newWorker = reg.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                newWorker.postMessage({ type: 'SKIP_WAITING' });
+                            }
+                        });
+                    });
+                })
+                .catch(err => console.error('SW registration failed:', err));
+        });
     }
 
     document.addEventListener('DOMContentLoaded', loadDashboardData);

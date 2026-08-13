@@ -43,6 +43,13 @@ function setMapStatus(message, tone = 'info') {
     status.className = `map-status ${tone}`;
 }
 
+function updateOfflineStatus() {
+    const offlineBanner = document.getElementById('offline-banner');
+    if (offlineBanner) {
+        offlineBanner.style.display = navigator.onLine ? 'none' : 'flex';
+    }
+}
+
 function formatDiseaseLabel(value) {
     if (!value) return 'Disease report';
     return value.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
@@ -146,11 +153,31 @@ function renderSummary() {
 async function loadOutbreakData() {
     outbreakReports = [];
 
-    if (typeof window.loadFromSupabase === 'function') {
+    if (window.db) {
+        try {
+            const localOutbreaks = await window.db.getAll('outbreaks');
+            if (Array.isArray(localOutbreaks) && localOutbreaks.length > 0) {
+                outbreakReports = [...outbreakReports, ...localOutbreaks.map(normalizeOutbreakReport)];
+            }
+        } catch (error) {
+            console.warn('Could not load outbreaks from IndexedDB:', error);
+        }
+    }
+
+    if (typeof window.loadFromSupabase === 'function' && navigator.onLine) {
         try {
             const remoteReports = await window.loadFromSupabase('outbreaks');
             if (Array.isArray(remoteReports) && remoteReports.length > 0) {
-                outbreakReports = [...outbreakReports, ...remoteReports.map(normalizeOutbreakReport)];
+                for (const report of remoteReports) {
+                    const normalized = normalizeOutbreakReport(report);
+                    const exists = outbreakReports.find(r => r.id === normalized.id);
+                    if (!exists) {
+                        outbreakReports.push(normalized);
+                        if (window.db) {
+                            await window.db.put('outbreaks', { ...normalized, sync_status: 'synced' });
+                        }
+                    }
+                }
             }
         } catch (error) {
             console.warn('Could not load outbreaks from Supabase:', error);
@@ -163,6 +190,7 @@ async function loadOutbreakData() {
         outbreakReports = [...sampleReports];
     }
 
+    updateOfflineStatus();
     renderSummary();
 }
 
@@ -409,8 +437,17 @@ async function initDiseaseMap() {
 
     await loadOutbreakData();
     await loadAllMarkers();
-    setMapStatus('Outbreak map ready', 'success');
+    setMapStatus(navigator.onLine ? 'Outbreak map ready' : 'Outbreak map ready (offline mode)', navigator.onLine ? 'success' : 'warning');
     await updateSupabaseStatus();
+    
+    window.addEventListener('online', () => {
+        updateOfflineStatus();
+        loadOutbreakData();
+        loadAllMarkers();
+    });
+    window.addEventListener('offline', () => {
+        updateOfflineStatus();
+    });
 }
 
 async function updateSupabaseStatus() {

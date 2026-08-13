@@ -11,9 +11,33 @@ async function renderHistoryTable() {
     if (!historyBody) return;
 
     try {
-        const { data, error } = await window.supabase.from('scans').select('*').order('timestamp', { ascending: false });
-        if (error) throw error;
-        const rows = data || [];
+        let scans = [];
+        
+        if (window.db) {
+            scans = await window.db.getAll('scans');
+        }
+        
+        if (navigator.onLine && typeof window.loadFromSupabase === 'function') {
+            try {
+                const remoteScans = await window.loadFromSupabase('scans');
+                if (Array.isArray(remoteScans)) {
+                    for (const scan of remoteScans) {
+                        const localExists = scans.find(s => s.id === scan.id);
+                        if (!localExists) {
+                            scans.push(scan);
+                            if (window.db) {
+                                await window.db.put('scans', { ...scan, sync_status: 'synced' });
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Remote history sync failed:', error);
+            }
+        }
+        
+        scans.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+        const rows = scans;
 
         if (rows.length === 0) {
             historyBody.innerHTML = '<tr><td colspan="5" class="empty-state">No scan history available yet.</td></tr>';

@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#07111f">
     <link rel="stylesheet" href="styles.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#07111f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
 </head>
 <body>
+<div id="sync-status-bar" class="sync-status-bar" role="status" aria-live="polite"></div>
 <div class="dashboard-shell">
     <header class="app-navbar" role="banner">
         <a href="dashboard.html">← Dashboard</a>
@@ -24,5 +28,27 @@
 </div>
 
 <script src="history.js?v=20260801"></script>
+    <script>
+    if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+                    .then(reg => {
+                        console.log('SW registered:', reg.scope)
+                        if (reg.waiting) {
+                            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                        }
+                        reg.addEventListener('updatefound', () => {
+                            const newWorker = reg.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    newWorker.postMessage({ type: 'SKIP_WAITING' });
+                                }
+                            });
+                        });
+                    })
+                    .catch(err => console.error('SW registration failed:', err));
+            });
+        }
+    </script>
 </body>
 </html>

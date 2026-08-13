@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clear MimeaHub Cache</title>
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 { color: #4ade80; margin-bottom: 20px; }
+        p { color: #94a3b8; margin-bottom: 30px; line-height: 1.6; }
+        button {
+            background: #4ade80;
+            color: #000;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background: #22c55e; }
+        .status {
+            margin-top: 20px;
+            padding: 16px;
+            border-radius: 12px;
+            display: none;
+        }
+        .status.success {
+            display: block;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+        }
+        .status.error {
+            display: block;
+            background: rgba(248, 81, 73, 0.1);
+            border: 1px solid rgba(248, 81, 73, 0.3);
+            color: #f85149;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Clear MimeaHub Cache</h1>
+        <p>This will unregister all service workers and clear all cached data. Use this if you're seeing "permanently moved" errors.</p>
+        <button onclick="clearAll()">Clear Everything</button>
+        <button onclick="window.location.href='index.html'">Go to App</button>
+        <div id="status" class="status"></div>
+    </div>
+
+    <script>
+        async function clearAll() {
+            const status = document.getElementById('status');
+            status.className = 'status';
+            status.style.display = 'none';
+            
+            try {
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(cacheNames.map(name => caches.delete(name)));
+                    console.log('Cleared caches:', cacheNames);
+                }
+
+                if ('serviceWorker' in navigator) {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(registrations.map(reg => reg.unregister()));
+                    console.log('Unregistered service workers:', registrations.length);
+                }
+
+                if ('indexedDB' in window) {
+                    try {
+                        await new Promise((resolve, reject) => {
+                            const request = indexedDB.deleteDatabase('mimeahub-offline');
+                            request.onsuccess = resolve;
+                            request.onerror = reject;
+                        });
+                        console.log('Deleted IndexedDB');
+                    } catch (e) {
+                        console.warn('IndexedDB delete failed:', e);
+                    }
+                }
+
+                localStorage.clear();
+                sessionStorage.clear();
+
+                status.className = 'status success';
+                status.textContent = '✅ All caches cleared! Click "Go to App" to continue.';
+                status.style.display = 'block';
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = '❌ Error: ' + error.message;
+                status.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>

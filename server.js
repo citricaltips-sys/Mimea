@@ -43,7 +43,12 @@ const server = http.createServer(async (req, res) => {
       '.woff2': 'font/woff2'
     };
     const contentType = contentTypes[ext] || 'application/octet-stream';
-    res.writeHead(200, { 'Content-Type': contentType, 'Access-Control-Allow-Origin': '*' });
+    const headers = { 
+      'Content-Type': contentType, 
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': ext === '.html' ? 'no-store, no-cache, must-revalidate, max-age=0' : 'public, max-age=86400'
+    };
+    res.writeHead(200, headers);
     fs.createReadStream(filePath).pipe(res);
   } else {
     sendJson(res, 404, { error: 'Not found' });

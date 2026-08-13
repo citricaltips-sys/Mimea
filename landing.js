@@ -1,8 +1,4 @@
-// ==========================================================================
-// LANDING PAGE INTERACTIONS
-// ==========================================================================
 
-// Smooth scroll to sections
 function scrollToDemo() {
     const featuresSection = document.getElementById('features');
     if (featuresSection) {
@@ -10,7 +6,7 @@ function scrollToDemo() {
     }
 }
 
-// Handle click outside modal to close
+
 document.addEventListener('click', (e) => {
     const modal = document.getElementById('auth-modal');
     if (modal && !modal.classList.contains('hidden')) {
@@ -20,7 +16,7 @@ document.addEventListener('click', (e) => {
     }
 });
 
-// Handle escape key to close modal
+
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeAuthModal();

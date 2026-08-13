@@ -8,9 +8,31 @@ async function initializeAnalyticsPage() {
 
 async function loadAnalytics() {
     try {
-        const { data, error } = await window.supabase.from('scans').select('*').order('timestamp', { ascending: false });
-        if (error) throw error;
-        const scans = data || [];
+        let scans = [];
+        
+        if (window.db) {
+            scans = await window.db.getAll('scans');
+        }
+        
+        if (navigator.onLine && typeof window.loadFromSupabase === 'function') {
+            try {
+                const remoteScans = await window.loadFromSupabase('scans');
+                if (Array.isArray(remoteScans)) {
+                    for (const scan of remoteScans) {
+                        const localExists = scans.find(s => s.id === scan.id);
+                        if (!localExists) {
+                            scans.push(scan);
+                            if (window.db) {
+                                await window.db.put('scans', { ...scan, sync_status: 'synced' });
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('Remote analytics sync failed:', error);
+            }
+        }
+        
         renderAnalyticsSummary(scans);
         renderAnalyticsChart(scans);
     } catch (error) {
