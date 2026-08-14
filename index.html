@@ -35,10 +35,9 @@
             background: rgba(7, 17, 31, 0.72); backdrop-filter: blur(20px);
             border-bottom: 1px solid rgba(255,255,255,0.08);
         }
-        .nav-container { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
-        .nav-brand { display: flex; align-items: center; gap: 12px; }
-        .nav-brand .brand-mark { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--accent-green), var(--accent-blue)); display: grid; place-items: center; font-weight: 800; color: #031018; }
-        .nav-brand span { font-size: 20px; font-weight: 800; }
+        .nav-container { max-width: 2000px; margin: -100px;  display: flex; justify-content: space-between; align-items: center; }
+        .nav-brand {position: relative; display: flex;  gap: 8px; margin: left 16px;}
+        .nav-brand img {transform:scale(0.35); border-radius: 15%; margin-left: 50px; }
         .nav-links { display: flex; align-items: center; gap: 24px; }
         .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 13px; font-weight: 600; transition: color 0.2s; }
         .nav-links a:hover { color: #f8fafc; }
@@ -74,8 +73,7 @@
         .hero-card .result-text h4 { font-size: 14px; font-weight: 700; }
         .hero-card .result-text span { font-size: 11px; color: var(--accent-green); }
         .hero-glow { position: absolute; width: 320px; height: 320px; background: radial-gradient(circle, rgba(74,222,128,0.16), transparent); top: -50px; right: -50px; z-index: 1; border-radius: 50%; }
-        .hero-float {position:absolute; bottom: 28px; left: 28px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 14px 16px; z-index: 3; box-shadow: 0 14px 36px rgba(0,0,0,0.3);} 
-        .hero-float span { font-size: 11px; color: var(--text-secondary); }
+        .hero-float {position:absolute; bottom: 125px; left: 380px; background: rgba(15, 23, 42, 0.9); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 14px 16px; z-index: 3; box-shadow: 0 14px 36px rgba(0,0,0,0.3);} 
         .hero-float h4 { font-size: 15px; font-weight: 700; color: var(--accent-blue); margin-top: 2px; }
 
         .features { max-width: 1200px; margin: 0 auto; padding: 80px 24px; }
